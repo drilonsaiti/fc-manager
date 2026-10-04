@@ -1,0 +1,22 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { background: #050505; color: #fff; font-family: 'DM Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+body { background: #050505; min-height: 100dvh; }
+::selection { background: rgba(255,255,255,0.15); }
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+
+@layer components {
+  .surface { background: #111; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; }
+  .surface-2 { background: #1a1a1a; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; }
+  .btn-primary { @apply bg-white text-black font-medium px-4 py-2 rounded-lg text-sm hover:bg-gray-100 active:scale-95 transition-all duration-150; }
+  .btn-ghost { @apply text-pitch-400 font-medium px-4 py-2 rounded-lg text-sm hover:bg-white/5 hover:text-white active:scale-95 transition-all duration-150; }
+  .input-field { @apply w-full bg-pitch-800 border border-pitch-700 rounded-lg px-4 py-3 text-white placeholder-pitch-500 text-sm focus:outline-none focus:border-white/30 transition-colors; }
+  .badge { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium; }
+  .stat-card { background: #111; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
+}
