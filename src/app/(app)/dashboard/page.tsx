@@ -1,119 +1,86 @@
 "use client";
-import { useAuth } from "@/contexts/AuthContext";
-import { useMatches } from "@/hooks/useMatches";
-import { usePlayers } from "@/hooks/usePlayers";
-import { useAvailability } from "@/hooks/useAvailability";
-import { useTrainings } from "@/hooks/useTrainings";
-import { NextMatchWidget } from "@/components/dashboard/NextMatchWidget";
-import { MatchCard } from "@/components/matches/MatchCard";
-import { StatsCard } from "@/components/ui/StatsCard";
-import { PageLoader } from "@/components/ui/LoadingSpinner";
+import { useState } from "react";
 import Link from "next/link";
-import { Calendar, Users, Dumbbell, Plus, ArrowRight, Trophy } from "lucide-react";
-import { format } from "date-fns";
+import { ArrowRight, CalendarDays } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAvailability, useMatches, usePlayers, useTrainings } from "@/hooks/data";
+import { buildTeamSummary, resultLetter } from "@/features/stats/aggregate";
+import { AvailabilityPanel } from "@/components/availability/AvailabilityPanel";
+import { MatchRow } from "@/components/ui/MatchRow";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageLoader } from "@/components/ui/LoadingSpinner";
+import { shortDate } from "@/lib/utils/datetime";
+import { cn } from "@/lib/utils/cn";
+import type { Match, Player } from "@/types";
 
-function DashboardContent({ teamId }: { teamId: string }) {
-  const { nextMatch, upcomingMatches, finishedMatches, loading: mLoading } = useMatches(teamId);
-  const { allPlayers, loading: pLoading } = usePlayers(teamId);
-  const { summary } = useAvailability(nextMatch?.id);
-  const { upcoming: upcomingTrainings } = useTrainings(teamId);
-  const { canManage } = useAuth();
+export default function DashboardPage() {
+  const { team, season, canManage } = useAuth();
+  const { matches, loading, mutate } = useMatches(team?.id, season?.id);
+  const { players } = usePlayers(team?.id);
+  const { trainings } = useTrainings(team?.id, season?.id);
+  const [now] = useState(() => Date.now());
 
-  if (mLoading || pLoading) return <PageLoader />;
+  if (loading) return <PageLoader />;
+  const next = matches.filter((m) => m.status === "live" || (m.status === "scheduled" && m.kickoff.getTime() > now - 3 * 3600_000))
+    .sort((a, b) => a.kickoff.getTime() - b.kickoff.getTime())[0];
+  const nextTraining = trainings.filter((t) => t.startsAt.getTime() > now).sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())[0];
+  const played = matches.filter((m) => m.status === "final");
+  const form = played.slice(0, 5);
+  const summary = buildTeamSummary(matches);
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-display text-white tracking-wide">DASHBOARD</h1>
-          <p className="text-pitch-500 text-sm mt-0.5">{format(new Date(), "EEEE, dd MMMM yyyy")}</p>
-        </div>
-        {canManage && (
-          <Link href="/matches" className="btn-primary flex items-center gap-1.5 text-sm">
-            <Plus className="w-4 h-4" /> New Match
-          </Link>
-        )}
-      </div>
+    <div className="space-y-6">
+      <h1 className="font-display text-3xl tracking-wide">{team?.name}</h1>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatsCard label="Players" value={allPlayers.length} icon={Users} />
-        <StatsCard label="Upcoming" value={upcomingMatches.length} icon={Calendar} accent="blue" />
-        <StatsCard label="Played" value={finishedMatches.length} icon={Trophy} accent="amber" />
-        <StatsCard label="Training" value={upcomingTrainings.length} icon={Dumbbell} accent="green" />
-      </div>
-
-      {nextMatch ? (
-        <NextMatchWidget match={nextMatch} availability={{
-          yes: summary.yes.length, no: summary.no.length,
-          maybe: summary.maybe.length, total: summary.total,
-        }} />
-      ) : (
-        <div className="surface p-5 text-center">
-          <p className="text-pitch-500 text-sm">No upcoming matches scheduled.</p>
-          {canManage && <Link href="/matches" className="text-white text-sm underline mt-1 inline-block">Create one</Link>}
-        </div>
+      {next ? <NextMatch match={next} players={players} onChange={() => mutate()} /> : (
+        <EmptyState icon={CalendarDays} title="No upcoming match"
+          description="Add one and share the availability link with your players."
+          action={canManage ? <Link href="/matches" className="btn-primary inline-block">Add a match</Link> : undefined} />
       )}
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs text-pitch-500 uppercase tracking-wider font-medium">Recent Results</h2>
-            <Link href="/matches" className="text-xs text-pitch-600 hover:text-white transition-colors flex items-center gap-1">All <ArrowRight className="w-3 h-3" /></Link>
-          </div>
-          {finishedMatches.slice(0, 3).length > 0
-            ? finishedMatches.slice(0, 3).map((m) => <MatchCard key={m.id} match={m} />)
-            : <div className="surface p-4 text-center"><p className="text-pitch-600 text-sm">No matches played yet.</p></div>}
-        </div>
+      {nextTraining && (
+        <Link href="/trainings" className="surface p-4 flex items-center gap-3">
+          <div className="flex-1"><p className="text-xs text-pitch-500 uppercase tracking-widest">Next training</p>
+            <p className="font-medium mt-0.5">{shortDate(nextTraining.startsAt)}</p></div>
+          <ArrowRight className="w-4 h-4 text-pitch-500" />
+        </Link>
+      )}
 
-        <div className="space-y-3">
+      {summary.played > 0 && (
+        <section className="surface p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-xs text-pitch-500 uppercase tracking-wider font-medium">Upcoming Training</h2>
-            <Link href="/trainings" className="text-xs text-pitch-600 hover:text-white transition-colors flex items-center gap-1">All <ArrowRight className="w-3 h-3" /></Link>
+            <h2 className="text-xs uppercase tracking-widest text-pitch-500">Form</h2>
+            <Link href="/stats" className="text-xs text-pitch-400 underline">All stats</Link>
           </div>
-          {upcomingTrainings.slice(0, 3).length > 0
-            ? upcomingTrainings.slice(0, 3).map((t) => (
-              <Link key={t.id} href="/trainings" className="surface p-3 flex items-center gap-3 hover:border-pitch-600 transition-all">
-                <div className="w-10 h-10 rounded-lg bg-pitch-800 flex flex-col items-center justify-center flex-shrink-0">
-                  <span className="text-xs text-pitch-500 leading-none">{format(t.date, "MMM").toUpperCase()}</span>
-                  <span className="text-white font-bold text-sm leading-tight">{format(t.date, "dd")}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-medium truncate">{t.title}</p>
-                  <p className="text-pitch-500 text-xs">{format(t.date, "HH:mm")} · {t.location}</p>
-                </div>
-              </Link>
-            ))
-            : <div className="surface p-4 text-center"><p className="text-pitch-600 text-sm">No training sessions scheduled.</p></div>}
-        </div>
-      </div>
+          <div className="flex gap-1.5">
+            {form.map((m) => { const r = resultLetter(m); return (
+              <span key={m.id} className={cn("w-8 h-8 rounded-md flex items-center justify-center text-sm font-semibold",
+                r === "W" ? "bg-green-500/20 text-green-400" : r === "L" ? "bg-red-500/20 text-red-400" : "bg-white/10 text-pitch-200")}>{r}</span>
+            ); })}
+          </div>
+          <p className="text-sm text-pitch-300 tabular-nums">P{summary.played} · W{summary.wins} D{summary.draws} L{summary.losses} · {summary.goalsFor}:{summary.goalsAgainst} goals</p>
+        </section>
+      )}
 
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs text-pitch-500 uppercase tracking-wider font-medium">Squad ({allPlayers.length})</h2>
-          <Link href="/players" className="text-xs text-pitch-600 hover:text-white transition-colors flex items-center gap-1">Manage <ArrowRight className="w-3 h-3" /></Link>
-        </div>
-        <div className="surface p-3 flex flex-wrap gap-2">
-          {allPlayers.slice(0, 18).map((p) => (
-            <div key={p.id} title={`${p.name}${p.position ? ` · ${p.position}` : ""}`}
-              className="w-9 h-9 rounded-full bg-pitch-800 border border-pitch-700 flex items-center justify-center overflow-hidden">
-              {p.photoURL
-                ? <img src={p.photoURL} alt={p.name} className="w-full h-full object-cover" />
-                : <span className="text-xs font-medium text-pitch-300">{p.name.charAt(0).toUpperCase()}</span>}
-            </div>
-          ))}
-          {allPlayers.length > 18 && (
-            <div className="w-9 h-9 rounded-full bg-pitch-800 flex items-center justify-center">
-              <span className="text-xs text-pitch-500">+{allPlayers.length - 18}</span>
-            </div>
-          )}
-        </div>
-      </div>
+      {played[0] && (<section className="space-y-2"><h2 className="text-xs uppercase tracking-widest text-pitch-500">Last result</h2><MatchRow match={played[0]} /></section>)}
     </div>
   );
 }
 
-export default function DashboardPage() {
-  const { user } = useAuth();
-  if (!user?.teamId) return <PageLoader />;
-  return <DashboardContent teamId={user.teamId} />;
+function NextMatch({ match, players, onChange }: { match: Match; players: Player[]; onChange: () => void }) {
+  const { summary } = useAvailability("match", match.id, players);
+  return (
+    <section className="space-y-3">
+      <Link href={`/matches/${match.id}`} className="surface p-4 block">
+        <p className="text-xs text-pitch-500 uppercase tracking-widest">{match.status === "live" ? "Live now" : "Next match"}</p>
+        <p className="font-display text-3xl tracking-wide mt-1">{match.isHome ? "vs" : "at"} {match.opponent}</p>
+        <p className="text-sm text-pitch-400">{shortDate(match.kickoff)}{match.venue ? ` · ${match.venue}` : ""}</p>
+        <p className="text-sm text-pitch-300 mt-2 tabular-nums">{summary.yes.length} in · {summary.maybe.length} maybe · {summary.none.length} no response</p>
+      </Link>
+      {match.status === "scheduled" && (
+        <AvailabilityPanel kind="match" eventId={match.id} title={`vs ${match.opponent}`} startsAt={match.kickoff} place={match.venue}
+          shareToken={match.shareToken} responsesOpen={match.responsesOpen} players={players} onOpenChange={onChange} />
+      )}
+    </section>
+  );
 }

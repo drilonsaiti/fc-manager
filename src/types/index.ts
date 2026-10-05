@@ -1,103 +1,140 @@
-export type UserRole = "owner" | "coach" | "staff" | "player";
+// Domain types. Database rows are snake_case; repositories in lib/db map them to these.
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
+export type Role = "owner" | "coach" | "staff";
+
+export interface Team { id: string; name: string }
+
+export interface Member {
+  userId: string;
   teamId: string;
-  position?: string;
-  jerseyNumber?: number;
-  photoURL?: string;
-  createdAt: Date;
+  role: Role;
+  displayName: string;
 }
 
-export interface Team {
+export interface Season { id: string; teamId: string; name: string; isActive: boolean }
+
+/** A squad member. Does not need an account. */
+export interface Player {
   id: string;
+  teamId: string;
   name: string;
-  logo?: string;
-  ownerId: string;
-  createdAt: Date;
+  number: number | null;
+  /** First entry is the primary position. */
+  positions: string[];
+  phone: string | null;
+  active: boolean;
 }
 
-export type MatchStatus = "upcoming" | "finished" | "cancelled";
+export type MatchStatus = "scheduled" | "live" | "final" | "cancelled";
 export type Competition = "league" | "cup" | "friendly" | "tournament";
 
 export interface Match {
   id: string;
   teamId: string;
+  seasonId: string | null;
   opponent: string;
-  date: Date;
-  location: string;
+  kickoff: Date;
+  venue: string;
   competition: Competition;
-  status: MatchStatus;
-  homeScore?: number | null;
-  awayScore?: number | null;
   isHome: boolean;
-  notes?: string | null;
-  createdAt: Date;
+  status: MatchStatus;
+  durationMinutes: number;
+  startedAt: Date | null;
+  ourScore: number | null;
+  theirScore: number | null;
+  notes: string | null;
+  shareToken: string;
+  responsesOpen: boolean;
 }
 
-export type AvailabilityStatus = "yes" | "no" | "maybe";
+export type AvailabilityStatus = "yes" | "maybe" | "no";
+/** What the coach sees per player: an answer, or nothing yet. */
+export type AvailabilityState = AvailabilityStatus | "none";
 
-export interface Availability {
-  id: string;
-  matchId: string;
-  userId: string;
-  userName: string;
-  userPosition?: string;
-  userJerseyNumber?: number;
-  userPhotoURL?: string;
-  status: AvailabilityStatus;
-  updatedAt: Date;
-}
-
-export interface Lineup {
-  id: string;
-  matchId: string;
-  teamId: string;
-  formation: string;
-  squad: string[];
-  startingXI: string[];
-  updatedAt: Date;
-}
+export type EventKind = "match" | "training";
 
 export interface Training {
   id: string;
   teamId: string;
-  title: string;
-  date: Date;
+  seasonId: string | null;
+  startsAt: Date;
   location: string;
-  description?: string | null;
+  kind: TrainingKind | null;
+  notes: string | null;
+  shareToken: string;
+  responsesOpen: boolean;
+}
+export type TrainingKind = "fitness" | "technical" | "tactical" | "match_practice" | "other";
+
+export interface Response {
+  playerId: string;
+  status: AvailabilityStatus | null;
+  attended: boolean;
+  updatedAt: Date;
+}
+
+export type LineupRole = "starter" | "bench";
+
+export interface LineupEntry {
+  playerId: string;
+  role: LineupRole;
+  slotId: string | null;
+  x: number | null;
+  y: number | null;
+  sort: number;
+}
+
+export interface Lineup { matchId: string; formation: string; entries: LineupEntry[] }
+
+export type EventType = "goal" | "own_goal" | "yellow" | "red" | "sub";
+export type Side = "us" | "them";
+
+export interface MatchEvent {
+  id: string;
+  matchId: string;
+  type: EventType;
+  side: Side;
+  minute: number;
+  playerId: string | null;
+  /** Assist (for a goal) or the player coming on (for a substitution). */
+  relatedPlayerId: string | null;
   createdAt: Date;
 }
 
-export interface TrainingAttendance {
-  id: string;
-  trainingId: string;
-  userId: string;
-  userName: string;
-  status: AvailabilityStatus;
-  updatedAt: Date;
-}
-
-export interface PlayerStat {
-  id: string;
-  userId: string;
-  matchId: string;
-  teamId: string;
+export interface PlayerMatchStat {
+  playerId: string;
+  started: boolean;
+  minutes: number;
   goals: number;
   assists: number;
-  yellowCards: number;
-  redCards: number;
-  minutesPlayed: number;
-  rating?: number;
-  updatedAt: Date;
+  yellow: number;
+  red: number;
+  ownGoals: number;
 }
 
-export interface AvailabilitySummary {
-  yes: Availability[];
-  no: Availability[];
-  maybe: Availability[];
-  total: number;
+export interface SeasonPlayerStat {
+  playerId: string;
+  appearances: number;
+  starts: number;
+  subAppearances: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  yellow: number;
+  red: number;
+  ownGoals: number;
+  wins: number;
+  draws: number;
+  losses: number;
+}
+
+/** What the public availability page receives (no private data). */
+export interface PublicEvent {
+  kind: EventKind;
+  title: string;
+  startsAt: string;
+  place: string;
+  team: string;
+  closed: boolean;
+  roster: { id: string; name: string; number: number | null }[];
 }

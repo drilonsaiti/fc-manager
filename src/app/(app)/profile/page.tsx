@@ -20,7 +20,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      getPlayerStats(user.id),
+      user.teamId ? getPlayerStats(user.id, user.teamId) : Promise.resolve([]),
       user.teamId ? getTeam(user.teamId) : Promise.resolve(null),
     ]).then(([s, t]) => { setStats(s); setTeam(t); setLoading(false); });
   }, [user]);

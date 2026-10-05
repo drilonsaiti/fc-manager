@@ -1,21 +1,24 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { subscribeToTeamMatches } from "@/lib/firebase/firestore";
 import type { Match } from "@/types";
 
 export function useMatches(teamId: string | undefined) {
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<{ teamId: string; matches: Match[] } | null>(null);
 
   useEffect(() => {
     if (!teamId) return;
-    const unsub = subscribeToTeamMatches(teamId, (data) => { setMatches(data); setLoading(false); });
-    return () => unsub();
+    return subscribeToTeamMatches(teamId, (matches) => setData({ teamId, matches }));
   }, [teamId]);
 
-  const upcomingMatches = matches.filter((m) => m.status === "upcoming").sort((a, b) => a.date.getTime() - b.date.getTime());
-  const finishedMatches = matches.filter((m) => m.status === "finished");
-  const nextMatch = upcomingMatches[0];
+  const loaded = !!teamId && data?.teamId === teamId;
+  const matches = useMemo(() => (loaded && data ? data.matches : []), [loaded, data]);
 
-  return { matches, upcomingMatches, finishedMatches, nextMatch, loading };
+  const upcomingMatches = useMemo(
+    () => matches.filter((m) => m.status === "upcoming").sort((a, b) => a.date.getTime() - b.date.getTime()),
+    [matches],
+  );
+  const finishedMatches = useMemo(() => matches.filter((m) => m.status === "finished"), [matches]);
+
+  return { matches, upcomingMatches, finishedMatches, nextMatch: upcomingMatches[0], loading: !!teamId && !loaded };
 }

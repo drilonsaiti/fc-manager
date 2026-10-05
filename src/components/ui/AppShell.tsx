@@ -1,82 +1,83 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useEffect, type ReactNode } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { BarChart3, CalendarDays, Dumbbell, Home, Settings, Users } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getTeam } from "@/lib/firebase/firestore";
-import { Sidebar } from "./Sidebar";
-import { Menu, X, Shield } from "lucide-react";
-import type { Team } from "@/types";
+import { PageLoader } from "./LoadingSpinner";
+import { cn } from "@/lib/utils/cn";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
-  const [team, setTeam] = useState<Team | null>(null);
-  const [mobileOpen, setMobileOpen] = useState(false);
+const NAV = [
+  { href: "/dashboard", label: "Home", icon: Home },
+  { href: "/matches", label: "Matches", icon: CalendarDays },
+  { href: "/players", label: "Squad", icon: Users },
+  { href: "/trainings", label: "Training", icon: Dumbbell },
+  { href: "/stats", label: "Stats", icon: BarChart3 },
+];
+
+export function AppShell({ children }: { children: ReactNode }) {
+  const { loading, userId, member, team, season } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
+  const path = usePathname();
 
   useEffect(() => {
-    if (!loading && !user) router.replace("/login");
-  }, [user, loading, router]);
+    if (!loading && (!userId || !member)) router.replace("/login");
+  }, [loading, userId, member, router]);
 
-  // Depend only on teamId string — stable, won't re-fire on every snapshot
-  useEffect(() => {
-    if (!user?.teamId) return;
-    getTeam(user.teamId).then((t) => setTeam(t));
-  }, [user?.teamId]);
+  if (loading || !userId || !member) return <PageLoader />;
 
-  // Close drawer on navigation
-  useEffect(() => { setMobileOpen(false); }, [pathname]);
-
-  if (loading) {
-    return (
-      <div className="min-h-dvh bg-pitch-950 flex items-center justify-center">
-        <div className="space-y-3 text-center">
-          <div className="w-10 h-10 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto" />
-          <p className="text-pitch-500 text-sm">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) return null;
+  const active = (href: string) => path === href || path.startsWith(href + "/");
 
   return (
-    <div className="flex min-h-dvh bg-pitch-950">
+    <div className="min-h-dvh bg-pitch-950 md:flex">
       {/* Desktop sidebar */}
-      <div className="hidden md:flex h-screen sticky top-0">
-        <Sidebar teamName={team?.name} />
-      </div>
-
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-40 flex">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <div className="relative z-50">
-            <Sidebar teamName={team?.name} onNavClick={() => setMobileOpen(false)} />
-          </div>
+      <aside className="hidden md:flex md:w-56 shrink-0 flex-col border-r border-white/10 p-4 gap-1 sticky top-0 h-dvh">
+        <div className="mb-6 px-2">
+          <p className="font-display text-2xl tracking-wide">{team?.name ?? "FC MANAGER"}</p>
+          {season && <p className="text-xs text-pitch-500">{season.name}</p>}
         </div>
-      )}
+        {NAV.map(({ href, label, icon: Icon }) => (
+          <Link key={href} href={href}
+            className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+              active(href) ? "bg-white text-black font-medium" : "text-pitch-400 hover:text-white hover:bg-white/5")}>
+            <Icon className="w-4 h-4" />{label}
+          </Link>
+        ))}
+        <Link href="/settings"
+          className={cn("mt-auto flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+            active("/settings") ? "bg-white text-black font-medium" : "text-pitch-400 hover:text-white hover:bg-white/5")}>
+          <Settings className="w-4 h-4" />Settings
+        </Link>
+      </aside>
 
       <div className="flex-1 min-w-0 flex flex-col">
-        {/* Mobile top bar */}
-        <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-pitch-800 bg-pitch-900 sticky top-0 z-30">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-white rounded-md flex items-center justify-center">
-              <Shield className="w-4 h-4 text-black" />
-            </div>
-            <span className="font-display text-lg text-white tracking-wider">
-              {team?.name ?? "FC MANAGER"}
-            </span>
+        {/* Mobile header */}
+        <header className="md:hidden flex items-center justify-between px-4 h-12 border-b border-white/10 sticky top-0 bg-pitch-950/95 backdrop-blur z-30">
+          <div className="min-w-0">
+            <span className="font-display text-xl tracking-wide truncate">{team?.name ?? "FC MANAGER"}</span>
+            {season && <span className="text-xs text-pitch-500 ml-2">{season.name}</span>}
           </div>
-          <button onClick={() => setMobileOpen((v) => !v)}
-            className="p-2 rounded-lg text-pitch-400 hover:text-white hover:bg-pitch-800 transition-colors">
-            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
+          <Link href="/settings" aria-label="Settings" className="p-2 -mr-2 text-pitch-400 hover:text-white">
+            <Settings className="w-5 h-5" />
+          </Link>
         </header>
 
-        <main className="flex-1 p-4 md:p-6 overflow-auto">
-          {children}
-        </main>
+        <main className="flex-1 w-full max-w-3xl mx-auto px-4 py-5 pb-28 md:pb-10">{children}</main>
+
+        {/* Mobile bottom navigation */}
+        <nav aria-label="Main" className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-pitch-950/95 backdrop-blur border-t border-white/10 pb-[env(safe-area-inset-bottom)]">
+          <ul className="grid grid-cols-5">
+            {NAV.map(({ href, label, icon: Icon }) => (
+              <li key={href}>
+                <Link href={href} aria-current={active(href) ? "page" : undefined}
+                  className={cn("flex flex-col items-center gap-0.5 py-2.5 text-[11px] transition-colors",
+                    active(href) ? "text-white" : "text-pitch-500")}>
+                  <Icon className={cn("w-5 h-5", active(href) && "stroke-[2.5]")} />{label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
       </div>
     </div>
   );

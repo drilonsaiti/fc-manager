@@ -1,59 +1,99 @@
 "use client";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import type { Session } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase/client";
+import { fetchMembership, fetchSeasons, fetchTeam } from "@/lib/db/teams";
+import { friendlyError } from "@/lib/db/util";
+import type { Member, Season, Team } from "@/types";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
-import { doc, onSnapshot, Timestamp } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase/config";
-import type { User } from "@/types";
-
-interface AuthContextType {
-  firebaseUser: FirebaseUser | null;
-  user: User | null;
+interface Ctx {
+  /** True until we know whether someone is signed in and which club they belong to. */
   loading: boolean;
-  isOwner: boolean;
-  isCoach: boolean;
-  isStaff: boolean;
+  /** Set when the club could not be loaded (e.g. a permission or network error). */
+  loadError: string | null;
+  userId: string | null;
+  email: string | null;
+  member: Member | null;
+  team: Team | null;
+  seasons: Season[];
+  /** The season new matches/trainings go into and stats are shown for. */
+  season: Season | null;
+  setSeasonId: (id: string) => void;
   canManage: boolean;
+  isOwner: boolean;
+  reload: () => Promise<void>;
+  signOut: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType>({
-  firebaseUser: null, user: null, loading: true,
-  isOwner: false, isCoach: false, isStaff: false, canManage: false,
-});
+const AuthContext = createContext<Ctx | null>(null);
+
+interface Loaded { member: Member | null; team: Team | null; seasons: Season[]; error: string | null }
+const EMPTY: Loaded = { member: null, team: null, seasons: [], error: null };
+
+async function loadClub(userId: string): Promise<Loaded> {
+  const member = await fetchMembership(userId);
+  if (!member) return EMPTY;
+  const [team, seasons] = await Promise.all([fetchTeam(member.teamId), fetchSeasons(member.teamId)]);
+  return { member, team, seasons, error: null };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [club, setClub] = useState<{ userId: string; data: Loaded } | null>(null);
+  const [chosenSeason, setChosenSeason] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubAuth = onAuthStateChanged(auth, (fbUser) => {
-      setFirebaseUser(fbUser);
-      if (!fbUser) { setUser(null); setLoading(false); return; }
-
-      const unsubUser = onSnapshot(doc(db, "users", fbUser.uid), (snap) => {
-        if (snap.exists()) {
-          const data = snap.data();
-          setUser({ ...data, id: snap.id, createdAt: (data.createdAt as Timestamp)?.toDate() ?? new Date() } as User);
-        }
-        setLoading(false);
-      });
-
-      return () => unsubUser();
+    const { data } = supabase().auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+      setSessionReady(true);
     });
-    return () => unsubAuth();
+    return () => data.subscription.unsubscribe();
   }, []);
 
-  const isOwner = user?.role === "owner";
-  const isCoach = user?.role === "coach";
-  const isStaff = user?.role === "staff";
-  const canManage = isOwner || isCoach || isStaff;
+  const userId = session?.user.id ?? null;
 
-  return (
-    <AuthContext.Provider value={{ firebaseUser, user, loading, isOwner, isCoach, isStaff, canManage }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    loadClub(userId)
+      .then((data) => { if (!cancelled) setClub({ userId, data }); })
+      .catch((e) => { if (!cancelled) setClub({ userId, data: { ...EMPTY, error: friendlyError(e, e instanceof Error ? e.message : undefined) } }); });
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  const reload = useCallback(async () => {
+    if (!userId) return;
+    const data = await loadClub(userId);
+    setClub({ userId, data });
+  }, [userId]);
+
+  const signOut = useCallback(async () => {
+    await supabase().auth.signOut();
+    setClub(null);
+  }, []);
+
+  const value = useMemo<Ctx>(() => {
+    const data = club && club.userId === userId ? club.data : EMPTY;
+    const loading = !sessionReady || (!!userId && !(club && club.userId === userId));
+    const season =
+      data.seasons.find((s) => s.id === chosenSeason) ?? data.seasons.find((s) => s.isActive) ?? data.seasons[0] ?? null;
+    const role = data.member?.role;
+    return {
+      loading, loadError: data.error, userId, email: session?.user.email ?? null,
+      member: data.member, team: data.team, seasons: data.seasons, season,
+      setSeasonId: setChosenSeason,
+      canManage: role === "owner" || role === "coach" || role === "staff",
+      isOwner: role === "owner",
+      reload, signOut,
+    };
+  }, [club, userId, sessionReady, session, chosenSeason, reload, signOut]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export const useAuth = () => useContext(AuthContext);
+export function useAuth(): Ctx {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used inside <AuthProvider>");
+  return ctx;
+}

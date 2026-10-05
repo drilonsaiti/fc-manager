@@ -13,9 +13,8 @@ import type {
 
 export async function createTeam(name: string, ownerId: string) {
   const ref = await addDoc(collection(db, "teams"), {
-    name, ownerId, createdAt: serverTimestamp(),
+    name: name.trim(), ownerId, createdAt: serverTimestamp(),
   });
-  await updateDoc(ref, { id: ref.id });
   return ref.id;
 }
 
@@ -178,7 +177,7 @@ export async function getTeamStats(teamId: string): Promise<PlayerStat[]> {
   return snap.docs.map((d) => ({ ...d.data(), id: d.id, updatedAt: (d.data().updatedAt as Timestamp)?.toDate() ?? new Date() } as PlayerStat));
 }
 
-export async function getPlayerStats(userId: string): Promise<PlayerStat[]> {
-  const snap = await getDocs(query(collection(db, "stats"), where("userId", "==", userId)));
+export async function getPlayerStats(userId: string, teamId: string): Promise<PlayerStat[]> {
+  const snap = await getDocs(query(collection(db, "stats"), where("userId", "==", userId), where("teamId", "==", teamId)));
   return snap.docs.map((d) => ({ ...d.data(), id: d.id, updatedAt: (d.data().updatedAt as Timestamp)?.toDate() ?? new Date() } as PlayerStat));
 }

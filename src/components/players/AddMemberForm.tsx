@@ -5,15 +5,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Loader2, Copy, Check, Eye, EyeOff } from "lucide-react";
 import type { UserRole } from "@/types";
 
-const POSITIONS = [
-  "Goalkeeper","Right Back","Centre Back","Left Back",
-  "Defensive Midfielder","Central Midfielder","Attacking Midfielder",
-  "Right Winger","Left Winger","Striker","Second Striker",
-];
-
 export function AddMemberForm({ onSuccess }: { onSuccess: () => void }) {
   const { user } = useAuth();
-  const [form, setForm] = useState({ name:"", email:"", password:"", role:"player" as UserRole, position:"", jerseyNumber:"" });
+  const [form, setForm] = useState({ name:"", email:"", password:"", role:"coach" as UserRole });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -39,10 +33,7 @@ export function AddMemberForm({ onSuccess }: { onSuccess: () => void }) {
     if (!user?.teamId) return;
     setError(""); setLoading(true);
     try {
-      await createManagedUser(form.email, form.password, form.name, user.teamId, form.role, {
-        position: form.position || undefined,
-        jerseyNumber: form.jerseyNumber ? Number(form.jerseyNumber) : undefined,
-      });
+      await createManagedUser(form.email, form.password, form.name, user.teamId, form.role);
       setDone({ name: form.name, email: form.email, password: form.password });
     } catch (err: unknown) {
       const code = (err as { code?: string }).code ?? "";
@@ -74,7 +65,7 @@ export function AddMemberForm({ onSuccess }: { onSuccess: () => void }) {
         {copied ? <><Check className="w-4 h-4" /> Copied!</> : <><Copy className="w-4 h-4" /> Copy login details</>}
       </button>
       <div className="flex gap-2">
-        <button onClick={() => { setDone(null); setForm({ name:"",email:"",password:"",role:"player",position:"",jerseyNumber:"" }); }} className="flex-1 btn-ghost text-sm py-2.5">Add Another</button>
+        <button onClick={() => { setDone(null); setForm({ name:"",email:"",password:"",role:"coach" }); }} className="flex-1 btn-ghost text-sm py-2.5">Add Another</button>
         <button onClick={onSuccess} className="flex-1 btn-primary text-sm py-2.5">Done</button>
       </div>
     </div>
@@ -84,8 +75,8 @@ export function AddMemberForm({ onSuccess }: { onSuccess: () => void }) {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="block text-xs text-pitch-400 mb-2 uppercase tracking-wide">Role</label>
-        <div className="grid grid-cols-4 gap-1.5">
-          {(["player","coach","staff","owner"] as UserRole[]).map((r) => (
+        <div className="grid grid-cols-3 gap-1.5">
+          {(["coach","staff","owner"] as UserRole[]).map((r) => (
             <button key={r} type="button" onClick={() => set("role", r)}
               className={`py-2 rounded-lg text-xs font-medium capitalize transition-all ${form.role === r ? "bg-white text-black" : "bg-pitch-800 text-pitch-400 hover:bg-pitch-700 hover:text-white"}`}>
               {r}
@@ -114,26 +105,10 @@ export function AddMemberForm({ onSuccess }: { onSuccess: () => void }) {
           </button>
         </div>
       </div>
-      {form.role === "player" && (
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-pitch-400 mb-1.5 uppercase tracking-wide">Position</label>
-            <select className="input-field" value={form.position} onChange={(e) => set("position", e.target.value)}>
-              <option value="">— Select —</option>
-              {POSITIONS.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-pitch-400 mb-1.5 uppercase tracking-wide">Jersey #</label>
-            <input type="number" min="1" max="99" className="input-field" placeholder="10"
-              value={form.jerseyNumber} onChange={(e) => set("jerseyNumber", e.target.value)} />
-          </div>
-        </div>
-      )}
       {error && <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>}
       <button type="submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2 py-3">
         {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-        {loading ? "Creating..." : `Add ${form.role === "player" ? "Player" : "Staff Member"}`}
+        {loading ? "Creating..." : "Add login"}
       </button>
     </form>
   );

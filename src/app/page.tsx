@@ -2,16 +2,14 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { PageLoader } from "@/components/ui/LoadingSpinner";
 
 export default function Home() {
-  const { user, loading } = useAuth();
+  const { userId, member, loading } = useAuth();
   const router = useRouter();
   useEffect(() => {
-    if (!loading) router.replace(user ? "/dashboard" : "/login");
-  }, [user, loading, router]);
-  return (
-    <div className="min-h-dvh bg-pitch-950 flex items-center justify-center">
-      <div className="w-10 h-10 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-    </div>
-  );
+    if (loading) return;
+    router.replace(userId && member ? "/dashboard" : "/login");
+  }, [userId, member, loading, router]);
+  return <PageLoader />;
 }

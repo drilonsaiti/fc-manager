@@ -9,27 +9,29 @@ import {
 import { doc, setDoc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { initializeApp, deleteApp } from "firebase/app";
 import { auth, db } from "./config";
+import { createTeam } from "./firestore";
 import type { UserRole } from "@/types";
 
 export async function signIn(email: string, password: string) {
   return signInWithEmailAndPassword(auth, email, password);
 }
 
-export async function signUp(
-  email: string,
-  password: string,
-  name: string,
-  teamId: string,
-  role: UserRole = "owner"
-) {
+/**
+ * Creates a club: the auth account first (so every following write is
+ * authenticated), then the team owned by that uid, then the owner's profile.
+ */
+export async function registerClub(email: string, password: string, name: string, teamName: string) {
   const credential = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(credential.user, { displayName: name });
+  const uid = credential.user.uid;
 
-  await setDoc(doc(db, "users", credential.user.uid), {
-    id: credential.user.uid,
+  const teamId = await createTeam(teamName, uid);
+
+  await setDoc(doc(db, "users", uid), {
+    id: uid,
     name,
     email,
-    role,
+    role: "owner" as UserRole,
     teamId,
     position: null,
     jerseyNumber: null,

@@ -1,73 +1,54 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { CalendarDays, Plus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useMatches } from "@/hooks/useMatches";
-import { useAvailability } from "@/hooks/useAvailability";
-import { MatchCard } from "@/components/matches/MatchCard";
-import { MatchForm } from "@/components/matches/MatchForm";
+import { useMatches } from "@/hooks/data";
+import { createMatch } from "@/lib/db/matches";
+import { MatchForm } from "@/components/forms/MatchForm";
+import { MatchRow } from "@/components/ui/MatchRow";
 import { Modal } from "@/components/ui/Modal";
-import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { cn } from "@/lib/utils/cn";
-import { Plus, Calendar } from "lucide-react";
-import type { Match } from "@/types";
-
-type Tab = "upcoming" | "finished";
-
-function MatchWithAvail({ match }: { match: Match }) {
-  const { summary } = useAvailability(match.id);
-  return <MatchCard match={match} availabilityCount={{ yes: summary.yes.length, total: summary.total }} />;
-}
+import { PageLoader } from "@/components/ui/LoadingSpinner";
 
 export default function MatchesPage() {
-  const { user, canManage } = useAuth();
-  const { upcomingMatches, finishedMatches, loading } = useMatches(user?.teamId);
-  const [tab, setTab] = useState<Tab>("upcoming");
-  const [showForm, setShowForm] = useState(false);
+  const { team, season, canManage } = useAuth();
+  const { matches, loading, mutate } = useMatches(team?.id, season?.id);
+  const [open, setOpen] = useState(false);
+  const router = useRouter();
 
   if (loading) return <PageLoader />;
-  const displayed = tab === "upcoming" ? upcomingMatches : finishedMatches;
+  const upcoming = matches.filter((m) => m.status === "scheduled" || m.status === "live").sort((a, b) => a.kickoff.getTime() - b.kickoff.getTime());
+  const past = matches.filter((m) => m.status === "final" || m.status === "cancelled");
 
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-display text-white tracking-wide">MATCHES</h1>
-          <p className="text-pitch-500 text-sm mt-0.5">{upcomingMatches.length} upcoming · {finishedMatches.length} played</p>
-        </div>
-        {canManage && (
-          <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-1.5 text-sm">
-            <Plus className="w-4 h-4" /> Schedule
-          </button>
-        )}
+        <h1 className="font-display text-3xl tracking-wide">MATCHES</h1>
+        {canManage && <button className="btn-primary flex items-center gap-1.5" onClick={() => setOpen(true)}><Plus className="w-4 h-4" />New match</button>}
       </div>
 
-      <div className="flex border border-pitch-800 rounded-lg overflow-hidden p-1 gap-1 w-fit">
-        {(["upcoming","finished"] as Tab[]).map((t) => (
-          <button key={t} onClick={() => setTab(t)}
-            className={cn("px-4 py-2 rounded-md text-sm font-medium transition-all capitalize",
-              tab === t ? "bg-white text-black" : "text-pitch-400 hover:text-white")}>
-            {t} ({t === "upcoming" ? upcomingMatches.length : finishedMatches.length})
-          </button>
-        ))}
-      </div>
-
-      {displayed.length === 0 ? (
-        <EmptyState icon={Calendar}
-          title={tab === "upcoming" ? "No upcoming matches" : "No matches played yet"}
-          description={tab === "upcoming" && canManage ? "Schedule your first match to get started." : undefined}
-          action={canManage && tab === "upcoming"
-            ? <button onClick={() => setShowForm(true)} className="btn-primary text-sm">Schedule Match</button>
-            : undefined}
-        />
-      ) : (
-        <div className="space-y-3">
-          {displayed.map((m) => <MatchWithAvail key={m.id} match={m} />)}
-        </div>
+      {matches.length === 0 && (
+        <EmptyState icon={CalendarDays} title="No matches yet" description="Add your next match, then share the availability link with your players."
+          action={canManage ? <button className="btn-primary" onClick={() => setOpen(true)}>Add a match</button> : undefined} />
       )}
 
-      <Modal open={showForm} onClose={() => setShowForm(false)} title="Schedule Match">
-        <MatchForm onSuccess={() => setShowForm(false)} />
+      {upcoming.length > 0 && (
+        <section className="space-y-2"><h2 className="text-xs uppercase tracking-widest text-pitch-500">Upcoming</h2>
+          {upcoming.map((m) => <MatchRow key={m.id} match={m} />)}</section>
+      )}
+      {past.length > 0 && (
+        <section className="space-y-2"><h2 className="text-xs uppercase tracking-widest text-pitch-500">Played</h2>
+          {past.map((m) => <MatchRow key={m.id} match={m} />)}</section>
+      )}
+
+      <Modal open={open} onClose={() => setOpen(false)} title="New match">
+        <MatchForm onCancel={() => setOpen(false)} onSubmit={async (input) => {
+          if (!team) return;
+          const id = await createMatch(team.id, season?.id ?? null, input);
+          await mutate();
+          router.push(`/matches/${id}`);
+        }} />
       </Modal>
     </div>
   );

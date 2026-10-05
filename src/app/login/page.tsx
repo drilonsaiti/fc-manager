@@ -1,119 +1,149 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase/client";
+import { createTeam, joinTeam } from "@/lib/db/teams";
+import { friendlyError } from "@/lib/db/util";
 import { useAuth } from "@/contexts/AuthContext";
-import { signIn, signUp } from "@/lib/firebase/auth";
-import { createTeam } from "@/lib/firebase/firestore";
 import { cn } from "@/lib/utils/cn";
-import { Shield, Eye, EyeOff, Loader2 } from "lucide-react";
 
-type Mode = "login" | "register";
+type Mode = "signin" | "create" | "join";
+
+const TABS: { id: Mode; label: string }[] = [
+  { id: "signin", label: "Sign in" },
+  { id: "create", label: "New club" },
+  { id: "join", label: "Join with code" },
+];
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<Mode>("login");
+  const { userId, member, loading, loadError, reload, signOut } = useAuth();
+  const router = useRouter();
+  const [mode, setMode] = useState<Mode>("signin");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [teamName, setTeamName] = useState("");
-  const [showPw, setShowPw] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const router = useRouter();
-  const { user } = useAuth();
+  const [club, setClub] = useState("");
+  const [code, setCode] = useState("");
+  const [trap, setTrap] = useState(""); // honeypot: people never see or fill this
+  const shownAt = useRef(0);
 
-  useEffect(() => { if (user) router.replace("/dashboard"); }, [user, router]);
+  useEffect(() => { shownAt.current = Date.now(); }, []);
 
-  async function handleSubmit(e: React.FormEvent) {
+  useEffect(() => {
+    if (!loading && userId && member) router.replace("/dashboard");
+  }, [loading, userId, member, router]);
+
+  async function submit(e: FormEvent) {
     e.preventDefault();
-    setError(""); setLoading(true);
+    if (busy) return;
+    setError("");
+
+    // Bots: pretend to work, do nothing. (Supabase Auth has its own rate limits on top.)
+    if (trap.trim() !== "" || Date.now() - shownAt.current < 1200) {
+      setBusy(true);
+      setTimeout(() => setBusy(false), 1500);
+      return;
+    }
+
+    setBusy(true);
     try {
-      if (mode === "login") {
-        await signIn(email, password);
+      const auth = supabase().auth;
+      if (userId && mode !== "signin") {
+        // Already signed in (e.g. the account was made earlier but the club step failed): only the club is missing.
+        if (!name.trim()) throw new Error("Enter your name.");
+        if (mode === "create") { if (!club.trim()) throw new Error("Enter your club name."); await createTeam(club.trim(), name.trim()); }
+        else { if (!code.trim()) throw new Error("Enter the invite code."); await joinTeam(code.trim(), name.trim()); }
+      } else if (mode === "signin") {
+        const { error: err } = await auth.signInWithPassword({ email: email.trim(), password });
+        if (err) throw err;
       } else {
-        const teamId = await createTeam(teamName, "pending");
-        await signUp(email, password, name, teamId, "owner");
+        if (!name.trim()) throw new Error("Enter your name.");
+        if (mode === "create" && !club.trim()) throw new Error("Enter your club name.");
+        if (mode === "join" && !code.trim()) throw new Error("Enter the invite code.");
+        const { data, error: err } = await auth.signUp({ email: email.trim(), password });
+        if (err) throw err;
+        if (!data.session) {
+          throw new Error("Email not confirmed. Turn off “Confirm email” in Supabase → Authentication → Providers → Email.");
+        }
+        if (mode === "create") await createTeam(club.trim(), name.trim());
+        else await joinTeam(code.trim(), name.trim());
       }
+      await reload();
       router.replace("/dashboard");
-    } catch (err: unknown) {
-      const code = (err as { code?: string }).code ?? "";
-      const messages: Record<string, string> = {
-        "auth/invalid-credential": "Invalid email or password.",
-        "auth/email-already-in-use": "An account with this email already exists.",
-        "auth/weak-password": "Password must be at least 6 characters.",
-        "auth/user-not-found": "No account found with this email.",
-        "auth/wrong-password": "Invalid email or password.",
-        "auth/invalid-email": "Please enter a valid email address.",
-      };
-      setError(messages[code] ?? "Something went wrong. Please try again.");
-    } finally { setLoading(false); }
+    } catch (err) {
+      setError(friendlyError(err, err instanceof Error ? err.message : undefined));
+      setBusy(false);
+    }
   }
 
   return (
-    <div className="min-h-dvh bg-pitch-950 flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-sm space-y-8">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center">
-            <Shield className="w-9 h-9 text-black" />
-          </div>
-          <div className="text-center">
-            <h1 className="font-display text-4xl text-white tracking-wider">FC MANAGER</h1>
-            <p className="text-pitch-400 text-sm mt-1">Amateur Football Club Management</p>
-          </div>
+    <main className="min-h-dvh bg-pitch-950 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
+          <h1 className="font-display text-5xl tracking-wide">FC MANAGER</h1>
+          <p className="text-pitch-400 text-sm mt-1">Squad, lineup and availability in minutes.</p>
         </div>
 
-        <div className="surface p-6 space-y-5">
-          <div className="flex rounded-lg overflow-hidden border border-pitch-700 p-1 gap-1">
-            {(["login","register"] as Mode[]).map((m) => (
-              <button key={m} type="button" onClick={() => { setMode(m); setError(""); }}
-                className={cn("flex-1 py-2 text-sm font-medium rounded-md transition-all",
-                  mode === m ? "bg-white text-black" : "text-pitch-400 hover:text-white")}>
-                {m === "login" ? "Sign In" : "Create Club"}
-              </button>
-            ))}
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === "register" && (
-              <>
-                <div>
-                  <label className="block text-xs text-pitch-400 mb-1.5 uppercase tracking-wide">Club Name *</label>
-                  <input className="input-field" placeholder="e.g. FC Warriors" value={teamName} onChange={(e) => setTeamName(e.target.value)} required />
-                </div>
-                <div>
-                  <label className="block text-xs text-pitch-400 mb-1.5 uppercase tracking-wide">Your Name *</label>
-                  <input className="input-field" placeholder="John Smith" value={name} onChange={(e) => setName(e.target.value)} required />
-                </div>
-              </>
-            )}
-            <div>
-              <label className="block text-xs text-pitch-400 mb-1.5 uppercase tracking-wide">Email *</label>
-              <input type="email" className="input-field" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            </div>
-            <div>
-              <label className="block text-xs text-pitch-400 mb-1.5 uppercase tracking-wide">Password *</label>
-              <div className="relative">
-                <input type={showPw ? "text" : "password"} className="input-field pr-11" placeholder="••••••••"
-                  value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
-                <button type="button" onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-pitch-400 hover:text-white transition-colors">
-                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-            {error && <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>}
-            <button type="submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2 py-3">
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-              {mode === "login" ? "Sign In" : "Create Club & Account"}
+        <div className="grid grid-cols-3 gap-1 p-1 surface-2 mb-4" role="tablist">
+          {TABS.map((t) => (
+            <button key={t.id} type="button" role="tab" aria-selected={mode === t.id}
+              onClick={() => { setMode(t.id); setError(""); }}
+              className={cn("py-2 rounded-lg text-xs font-medium transition-colors",
+                mode === t.id ? "bg-white text-black" : "text-pitch-400 hover:text-white")}>
+              {t.label}
             </button>
-          </form>
-
-          <p className="text-xs text-pitch-600 text-center">
-            {mode === "register"
-              ? "You'll be registered as club owner. Add players from the Players page."
-              : "Players sign in with credentials provided by their manager."}
-          </p>
+          ))}
         </div>
+
+        {!loading && userId && !member && (
+          <div role="status" className="surface p-4 mb-4 text-sm space-y-2">
+            <p className="text-amber-400 font-medium">You&apos;re signed in, but this account has no club yet.</p>
+            {loadError && <p className="text-red-400">Couldn&apos;t load your club: {loadError}</p>}
+            <p className="text-pitch-300">Choose <strong>New club</strong> or <strong>Join with code</strong> below to finish setting up.</p>
+            <button type="button" className="underline text-pitch-400" onClick={() => signOut()}>Use a different account</button>
+          </div>
+        )}
+
+        <form onSubmit={submit} className="surface p-5 space-y-3">
+          {mode !== "signin" && (
+            <input className="input-field" placeholder="Your name" value={name} autoComplete="name"
+              onChange={(e) => setName(e.target.value)} maxLength={60} />
+          )}
+          {mode === "create" && (
+            <input className="input-field" placeholder="Club name" value={club}
+              onChange={(e) => setClub(e.target.value)} maxLength={60} />
+          )}
+          {mode === "join" && (
+            <input className="input-field font-mono tracking-wider" placeholder="Invite code" value={code}
+              onChange={(e) => setCode(e.target.value)} autoCapitalize="none" autoComplete="off" />
+          )}
+          {!(userId && mode !== "signin") && (
+            <>
+              <input className="input-field" type="email" placeholder="Email" value={email} required
+                autoComplete="email" onChange={(e) => setEmail(e.target.value)} />
+              <input className="input-field" type="password" placeholder="Password (6+ characters)" value={password}
+                required minLength={6} autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                onChange={(e) => setPassword(e.target.value)} />
+            </>
+          )}
+
+          {/* Honeypot */}
+          <div aria-hidden="true" style={{ position: "absolute", left: "-10000px", width: 1, height: 1, overflow: "hidden" }}>
+            <label>Website<input tabIndex={-1} autoComplete="off" name="website" value={trap} onChange={(e) => setTrap(e.target.value)} /></label>
+          </div>
+
+          {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
+          <button className="btn-primary w-full py-3 disabled:opacity-60" disabled={busy}>
+            {busy ? "Please wait…" : mode === "signin" ? "Sign in" : mode === "create" ? "Create club" : "Join club"}
+          </button>
+        </form>
+
+        <p className="text-pitch-500 text-xs text-center mt-4">
+          Players don&apos;t need an account — you share a link with them.
+        </p>
       </div>
-    </div>
+    </main>
   );
 }
