@@ -15,7 +15,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     const { data, error } = await serviceClient().rpc("public_get_event", { p_token: token });
     if (error) return json({ error: "server" }, 500);
     if (!data) return json({ error: "not_found" }, 404);
-    return json(data);
+    // A short shared cache absorbs the burst when the link lands in a group chat.
+    return NextResponse.json(data, { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30" } });
   } catch {
     return json({ error: "server" }, 500);
   }

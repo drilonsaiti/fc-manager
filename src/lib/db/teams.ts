@@ -14,6 +14,24 @@ export async function fetchMembership(userId: string): Promise<Member | null> {
   return rows[0] ? toMember(rows[0]) : null;
 }
 
+/**
+ * Membership, club and seasons in one round trip (two requests in parallel).
+ * Row Level Security already limits seasons to clubs the user belongs to.
+ */
+export async function fetchClub(userId: string): Promise<{ member: Member; team: Team; seasons: Season[] } | null> {
+  const [mem, sea] = await Promise.all([
+    supabase().from("team_members").select("team_id, user_id, role, display_name, teams(id, name)")
+      .eq("user_id", userId).order("created_at").limit(1),
+    supabase().from("seasons").select("id, team_id, name, is_active").order("created_at", { ascending: false }),
+  ]);
+  const rows = unwrap(mem) as unknown as (MemberRow & { teams: Team | Team[] | null })[];
+  const row = rows[0];
+  if (!row) return null;
+  const embedded = Array.isArray(row.teams) ? row.teams[0] : row.teams;
+  const seasons = (unwrap(sea) as SeasonRow[]).filter((x) => x.team_id === row.team_id).map(toSeason);
+  return { member: toMember(row), team: embedded ?? { id: row.team_id, name: "" }, seasons };
+}
+
 export async function fetchTeam(teamId: string): Promise<Team | null> {
   const rows = unwrap(await supabase().from("teams").select("id, name").eq("id", teamId).limit(1)) as Team[];
   return rows[0] ?? null;

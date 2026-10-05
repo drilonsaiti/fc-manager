@@ -155,6 +155,8 @@ export interface LineupIssue {
   code: "unknown_player" | "duplicate" | "too_many_starters" | "no_goalkeeper" | "incomplete" | "unavailable" | "no_response";
   message: string;
   playerId?: string;
+  /** Values for translating the message: { name } or { count }. */
+  params?: Record<string, string | number>;
 }
 
 export function validateLineup(
@@ -168,9 +170,9 @@ export function validateLineup(
   const all = playerIds(s);
   const seen = new Set<string>();
   for (const id of all) {
-    if (seen.has(id)) errors.push({ code: "duplicate", message: `${nameOf(id)} is in the lineup twice.`, playerId: id });
+    if (seen.has(id)) errors.push({ code: "duplicate", message: `${nameOf(id)} is in the lineup twice.`, playerId: id, params: { name: nameOf(id) } });
     seen.add(id);
-    if (!ctx.activeIds.has(id)) errors.push({ code: "unknown_player", message: `${nameOf(id)} is no longer in the squad.`, playerId: id });
+    if (!ctx.activeIds.has(id)) errors.push({ code: "unknown_player", message: `${nameOf(id)} is no longer in the squad.`, playerId: id, params: { name: nameOf(id) } });
   }
 
   const starters = Object.values(s.slots);
@@ -178,12 +180,30 @@ export function validateLineup(
 
   const gk = slotsOf(s).find((x) => x.role === "GK");
   if (gk && !s.slots[gk.id]) warnings.push({ code: "no_goalkeeper", message: "Nobody is in goal." });
-  if (starters.length < 11) warnings.push({ code: "incomplete", message: `Only ${starters.length} of 11 starters picked.` });
+  if (starters.length < 11) warnings.push({ code: "incomplete", message: `Only ${starters.length} of 11 starters picked.`, params: { count: starters.length } });
 
   for (const id of new Set(all)) {
     const a = ctx.availability.get(id) ?? "none";
-    if (a === "no") warnings.push({ code: "unavailable", message: `${nameOf(id)} said they can't play.`, playerId: id });
-    else if (a === "none") warnings.push({ code: "no_response", message: `${nameOf(id)} hasn't answered yet.`, playerId: id });
+    if (a === "no") warnings.push({ code: "unavailable", message: `${nameOf(id)} said they can't play.`, playerId: id, params: { name: nameOf(id) } });
+    else if (a === "none") warnings.push({ code: "no_response", message: `${nameOf(id)} hasn't answered yet.`, playerId: id, params: { name: nameOf(id) } });
   }
   return { errors, warnings };
+}
+
+/**
+ * Drop a player on the pitch without aiming at a slot: they take the closest empty slot
+ * (or the closest slot at all when the formation is full, which swaps them in).
+ * x/y are percentages of the pitch.
+ */
+export function placeNearest(s: LineupState, playerId: string, x: number, y: number): LineupState {
+  const slots = slotsOf(s);
+  if (slots.length === 0) return s;
+  const dist = (slot: FormationSlot) => {
+    const p = positionOf(s, slot);
+    // the pitch is 2:3, so a percent of height is 1.5x a percent of width
+    return Math.hypot(p.x - x, (p.y - y) * 1.5);
+  };
+  const byDistance = [...slots].sort((a, b) => dist(a) - dist(b));
+  const target = byDistance.find((slot) => !s.slots[slot.id]) ?? byDistance[0];
+  return placePlayer(s, target.id, playerId);
 }

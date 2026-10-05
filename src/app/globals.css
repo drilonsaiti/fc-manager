@@ -1,12 +1,16 @@
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { background: #050505; color: #fff; font-family: 'DM Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+html { color-scheme: dark; -webkit-text-size-adjust: 100%; background: #050505; color: #fff; font-family: 'DM Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
 body { background: #050505; min-height: 100dvh; }
+button, a, select, summary, [role="tab"] { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+:focus-visible { outline: 2px solid rgba(255,255,255,.7); outline-offset: 2px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; }
+@media (max-width: 767px) { input, select, textarea { font-size: 16px !important; } } /* stops iOS zooming into fields */
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+@media print { html, body { background: #fff !important; color: #000 !important; } nav, header, aside { display: none !important; } .surface, .surface-2 { background: #fff !important; border-color: #ddd !important; } }
 ::selection { background: rgba(255,255,255,0.15); }
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }

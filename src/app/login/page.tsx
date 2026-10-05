@@ -6,18 +6,21 @@ import { createTeam, joinTeam } from "@/lib/db/teams";
 import { friendlyError } from "@/lib/db/util";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils/cn";
+import { useT, type MessageKey } from "@/i18n";
+import { LangSwitch } from "@/components/ui/LangSwitch";
 
 type Mode = "signin" | "create" | "join";
 
-const TABS: { id: Mode; label: string }[] = [
-  { id: "signin", label: "Sign in" },
-  { id: "create", label: "New club" },
-  { id: "join", label: "Join with code" },
+const TABS: { id: Mode; label: MessageKey }[] = [
+  { id: "signin", label: "login.signin" },
+  { id: "create", label: "login.newClub" },
+  { id: "join", label: "login.join" },
 ];
 
 export default function LoginPage() {
   const { userId, member, loading, loadError, reload, signOut } = useAuth();
   const router = useRouter();
+  const { t } = useT();
   const [mode, setMode] = useState<Mode>("signin");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -52,20 +55,20 @@ export default function LoginPage() {
       const auth = supabase().auth;
       if (userId && mode !== "signin") {
         // Already signed in (e.g. the account was made earlier but the club step failed): only the club is missing.
-        if (!name.trim()) throw new Error("Enter your name.");
-        if (mode === "create") { if (!club.trim()) throw new Error("Enter your club name."); await createTeam(club.trim(), name.trim()); }
-        else { if (!code.trim()) throw new Error("Enter the invite code."); await joinTeam(code.trim(), name.trim()); }
+        if (!name.trim()) throw new Error(t("login.errName"));
+        if (mode === "create") { if (!club.trim()) throw new Error(t("login.errClub")); await createTeam(club.trim(), name.trim()); }
+        else { if (!code.trim()) throw new Error(t("login.errCode")); await joinTeam(code.trim(), name.trim()); }
       } else if (mode === "signin") {
         const { error: err } = await auth.signInWithPassword({ email: email.trim(), password });
         if (err) throw err;
       } else {
-        if (!name.trim()) throw new Error("Enter your name.");
-        if (mode === "create" && !club.trim()) throw new Error("Enter your club name.");
-        if (mode === "join" && !code.trim()) throw new Error("Enter the invite code.");
+        if (!name.trim()) throw new Error(t("login.errName"));
+        if (mode === "create" && !club.trim()) throw new Error(t("login.errClub"));
+        if (mode === "join" && !code.trim()) throw new Error(t("login.errCode"));
         const { data, error: err } = await auth.signUp({ email: email.trim(), password });
         if (err) throw err;
         if (!data.session) {
-          throw new Error("Email not confirmed. Turn off “Confirm email” in Supabase → Authentication → Providers → Email.");
+          throw new Error("Email not confirmed");
         }
         if (mode === "create") await createTeam(club.trim(), name.trim());
         else await joinTeam(code.trim(), name.trim());
@@ -83,47 +86,48 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="font-display text-5xl tracking-wide">FC MANAGER</h1>
-          <p className="text-pitch-400 text-sm mt-1">Squad, lineup and availability in minutes.</p>
+          <p className="text-pitch-400 text-sm mt-1">{t("login.tagline")}</p>
+          <LangSwitch className="mt-4" />
         </div>
 
         <div className="grid grid-cols-3 gap-1 p-1 surface-2 mb-4" role="tablist">
-          {TABS.map((t) => (
-            <button key={t.id} type="button" role="tab" aria-selected={mode === t.id}
-              onClick={() => { setMode(t.id); setError(""); }}
+          {TABS.map((tab) => (
+            <button key={tab.id} type="button" role="tab" aria-selected={mode === tab.id}
+              onClick={() => { setMode(tab.id); setError(""); }}
               className={cn("py-2 rounded-lg text-xs font-medium transition-colors",
-                mode === t.id ? "bg-white text-black" : "text-pitch-400 hover:text-white")}>
-              {t.label}
+                mode === tab.id ? "bg-white text-black" : "text-pitch-400 hover:text-white")}>
+              {t(tab.label)}
             </button>
           ))}
         </div>
 
         {!loading && userId && !member && (
           <div role="status" className="surface p-4 mb-4 text-sm space-y-2">
-            <p className="text-amber-400 font-medium">You&apos;re signed in, but this account has no club yet.</p>
-            {loadError && <p className="text-red-400">Couldn&apos;t load your club: {loadError}</p>}
-            <p className="text-pitch-300">Choose <strong>New club</strong> or <strong>Join with code</strong> below to finish setting up.</p>
-            <button type="button" className="underline text-pitch-400" onClick={() => signOut()}>Use a different account</button>
+            <p className="text-amber-400 font-medium">{t("login.noClub")}</p>
+            {loadError && <p className="text-red-400">{t("login.loadFail", { error: loadError })}</p>}
+            <p className="text-pitch-300">{t("login.noClubHelp")}</p>
+            <button type="button" className="underline text-pitch-400" onClick={() => signOut()}>{t("login.otherAccount")}</button>
           </div>
         )}
 
         <form onSubmit={submit} className="surface p-5 space-y-3">
           {mode !== "signin" && (
-            <input className="input-field" placeholder="Your name" value={name} autoComplete="name"
+            <input className="input-field" placeholder={t("login.name")} value={name} autoComplete="name"
               onChange={(e) => setName(e.target.value)} maxLength={60} />
           )}
           {mode === "create" && (
-            <input className="input-field" placeholder="Club name" value={club}
+            <input className="input-field" placeholder={t("login.club")} value={club}
               onChange={(e) => setClub(e.target.value)} maxLength={60} />
           )}
           {mode === "join" && (
-            <input className="input-field font-mono tracking-wider" placeholder="Invite code" value={code}
+            <input className="input-field font-mono tracking-wider" placeholder={t("login.code")} value={code}
               onChange={(e) => setCode(e.target.value)} autoCapitalize="none" autoComplete="off" />
           )}
           {!(userId && mode !== "signin") && (
             <>
-              <input className="input-field" type="email" placeholder="Email" value={email} required
+              <input className="input-field" type="email" placeholder={t("login.email")} value={email} required
                 autoComplete="email" onChange={(e) => setEmail(e.target.value)} />
-              <input className="input-field" type="password" placeholder="Password (6+ characters)" value={password}
+              <input className="input-field" type="password" placeholder={t("login.password")} value={password}
                 required minLength={6} autoComplete={mode === "signin" ? "current-password" : "new-password"}
                 onChange={(e) => setPassword(e.target.value)} />
             </>
@@ -136,12 +140,12 @@ export default function LoginPage() {
 
           {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
           <button className="btn-primary w-full py-3 disabled:opacity-60" disabled={busy}>
-            {busy ? "Please wait…" : mode === "signin" ? "Sign in" : mode === "create" ? "Create club" : "Join club"}
+            {busy ? t("c.wait") : mode === "signin" ? t("login.signin") : mode === "create" ? t("login.btnCreate") : t("login.btnJoin")}
           </button>
         </form>
 
         <p className="text-pitch-500 text-xs text-center mt-4">
-          Players don&apos;t need an account — you share a link with them.
+          {t("login.playersNote")}
         </p>
       </div>
     </main>

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PRESET_FORMATIONS, buildFormation, getFormation, parseFormation } from "./formations";
 import {
   benchPlayer, changeFormation, emptyLineup, fromEntries, keepOnly, movePlayer, placePlayer,
-  playerIds, removePlayer, resetLineup, slotOfPlayer, startersOf, toEntries, validateLineup,
+  placeNearest, playerIds, removePlayer, resetLineup, slotOfPlayer, startersOf, toEntries, validateLineup,
 } from "./lineup";
 
 describe("formations", () => {
@@ -209,5 +209,33 @@ describe("validateLineup", () => {
     expect(validateLineup(corrupt, ctx(Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`p${i}`, "yes"])))).errors.map((e) => e.code)).toContain("too_many_starters");
     const dup = { ...s, slots: { GK: "a" }, bench: ["a"] };
     expect(validateLineup(dup, ctx({ a: "yes" })).errors.map((e) => e.code)).toContain("duplicate");
+  });
+});
+
+describe("placeNearest", () => {
+  it("fills the closest empty slot to where the player was dropped", () => {
+    const s = emptyLineup("4-4-2");
+    const gk = getFormation("4-4-2")!.slots.find((x) => x.role === "GK")!;
+    const next = placeNearest(s, "p1", gk.x, gk.y);
+    expect(next.slots[gk.id]).toBe("p1");
+  });
+
+  it("skips taken slots and uses the next closest empty one", () => {
+    let s = emptyLineup("4-4-2");
+    const gk = getFormation("4-4-2")!.slots.find((x) => x.role === "GK")!;
+    s = placeNearest(s, "p1", gk.x, gk.y);
+    const second = placeNearest(s, "p2", gk.x, gk.y);
+    expect(second.slots[gk.id]).toBe("p1");
+    expect(Object.values(second.slots).sort()).toEqual(["p1", "p2"]);
+  });
+
+  it("swaps with the closest player when the formation is full", () => {
+    let s = emptyLineup("4-4-2");
+    getFormation("4-4-2")!.slots.forEach((slot, i) => { s = placePlayer(s, slot.id, `p${i}`); });
+    const gk = getFormation("4-4-2")!.slots.find((x) => x.role === "GK")!;
+    const next = placeNearest(s, "sub", gk.x, gk.y);
+    expect(next.slots[gk.id]).toBe("sub");
+    expect(next.bench).toHaveLength(1);
+    expect(Object.keys(next.slots)).toHaveLength(11);
   });
 });

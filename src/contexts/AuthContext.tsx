@@ -2,7 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase/client";
-import { fetchMembership, fetchSeasons, fetchTeam } from "@/lib/db/teams";
+import { fetchClub } from "@/lib/db/teams";
 import { friendlyError } from "@/lib/db/util";
 import type { Member, Season, Team } from "@/types";
 
@@ -31,10 +31,8 @@ interface Loaded { member: Member | null; team: Team | null; seasons: Season[]; 
 const EMPTY: Loaded = { member: null, team: null, seasons: [], error: null };
 
 async function loadClub(userId: string): Promise<Loaded> {
-  const member = await fetchMembership(userId);
-  if (!member) return EMPTY;
-  const [team, seasons] = await Promise.all([fetchTeam(member.teamId), fetchSeasons(member.teamId)]);
-  return { member, team, seasons, error: null };
+  const club = await fetchClub(userId);
+  return club ? { ...club, error: null } : EMPTY;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

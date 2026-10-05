@@ -8,15 +8,17 @@ import { setResponsesOpen as setMatchOpen } from "@/lib/db/matches";
 import { setTrainingResponsesOpen } from "@/lib/db/trainings";
 import { friendlyError } from "@/lib/db/util";
 import { buildInviteText, buildReminderText, buildShareUrl } from "@/features/availability/logic";
+import { messageLabels } from "@/i18n/labels";
+import { useT, type MessageKey } from "@/i18n";
 import { copyText } from "@/lib/utils/clipboard";
 import { cn } from "@/lib/utils/cn";
-import type { AvailabilityState, AvailabilityStatus, EventKind, Player } from "@/types";
+import type { AvailabilityState, AvailabilityStatus, EventKind, Player, Response } from "@/types";
 
-const META: Record<AvailabilityState, { label: string; dot: string }> = {
-  yes: { label: "Available", dot: "bg-green-500" },
-  maybe: { label: "Maybe", dot: "bg-amber-400" },
-  none: { label: "No response", dot: "bg-pitch-500" },
-  no: { label: "Unavailable", dot: "bg-red-500" },
+const META: Record<AvailabilityState, { label: MessageKey; dot: string }> = {
+  yes: { label: "av.yes", dot: "bg-green-500" },
+  maybe: { label: "av.maybe", dot: "bg-amber-400" },
+  none: { label: "av.none", dot: "bg-pitch-500" },
+  no: { label: "av.no", dot: "bg-red-500" },
 };
 const ORDER: AvailabilityState[] = ["yes", "maybe", "none", "no"];
 
@@ -37,6 +39,7 @@ interface Props {
 }
 
 export function AvailabilityPanel(p: Props) {
+  const { t, locale } = useT();
   const { team, canManage } = useAuth();
   const { rows, summary, responses, mutate } = useAvailability(p.kind, p.eventId, p.players);
   const [note, setNote] = useState("");
@@ -46,23 +49,35 @@ export function AvailabilityPanel(p: Props) {
   function flash(text: string) { setNote(text); setTimeout(() => setNote(""), 2500); }
 
   async function copy(text: string, done: string) {
-    flash((await copyText(text)) ? done : "Couldn't copy. Select and copy manually.");
+    flash((await copyText(text)) ? done : t("c.copyFail"));
   }
 
-  async function answer(playerId: string, status: AvailabilityStatus) {
-    if (!team) return;
+  /** Updates the list immediately, then saves; rolls back if saving fails. */
+  async function optimistic(change: (list: Response[]) => Response[], save: () => Promise<void>) {
     try {
-      await setResponse(p.kind, p.eventId, team.id, playerId, status);
-      await mutate();
+      await mutate(async (current) => { await save(); return change(current ?? []); }, {
+        optimisticData: (current) => change(current ?? []),
+        rollbackOnError: true,
+        revalidate: false,
+      });
     } catch (e) { flash(friendlyError(e)); }
   }
 
-  async function toggleAttended(playerId: string) {
+  const upsert = (list: Response[], playerId: string, patch: Partial<Response>): Response[] => {
+    const found = list.find((r) => r.playerId === playerId);
+    if (found) return list.map((r) => (r.playerId === playerId ? { ...r, ...patch, updatedAt: new Date() } : r));
+    return [...list, { playerId, status: null, attended: false, updatedAt: new Date(), ...patch }];
+  };
+
+  function answer(playerId: string, status: AvailabilityStatus) {
     if (!team) return;
-    try {
-      await setAttended(p.eventId, team.id, playerId, !attended.has(playerId));
-      await mutate();
-    } catch (e) { flash(friendlyError(e)); }
+    return optimistic((l) => upsert(l, playerId, { status }), () => setResponse(p.kind, p.eventId, team.id, playerId, status));
+  }
+
+  function toggleAttended(playerId: string) {
+    if (!team) return;
+    const next = !attended.has(playerId);
+    return optimistic((l) => upsert(l, playerId, { attended: next }), () => setAttended(p.eventId, team.id, playerId, next));
   }
 
   async function toggleOpen() {
@@ -75,15 +90,16 @@ export function AvailabilityPanel(p: Props) {
 
   const missing = summary.none.map((r) => r.player);
   const closed = p.locked || !p.responsesOpen;
+  const labels = messageLabels(t);
 
   return (
-    <section className="space-y-4" aria-label="Availability">
+    <section className="space-y-4" aria-label={t("tab.availability")}>
       {/* Counts */}
       <div className="grid grid-cols-4 gap-2">
         {ORDER.map((s) => (
           <div key={s} className="surface-2 p-3 text-center">
             <p className="text-2xl font-semibold tabular-nums">{summary[s].length}</p>
-            <p className="text-[11px] text-pitch-400 leading-tight">{META[s].label}</p>
+            <p className="text-[11px] text-pitch-400 leading-tight">{t(META[s].label)}</p>
           </div>
         ))}
       </div>
@@ -92,13 +108,13 @@ export function AvailabilityPanel(p: Props) {
       {canManage && (
         <div className="grid grid-cols-2 gap-2">
           <button className="btn-primary flex items-center justify-center gap-2 py-3"
-            onClick={() => copy(buildInviteText({ kind: p.kind, title: p.title, date: p.startsAt, place: p.place, url }), "Link & message copied — paste it in your group chat")}>
-            <Link2 className="w-4 h-4" />Copy link
+            onClick={() => copy(buildInviteText({ kind: p.kind, title: p.title, date: p.startsAt, place: p.place, url, labels, locale }), t("av.copiedInvite"))}>
+            <Link2 className="w-4 h-4" />{t("av.copyLink")}
           </button>
           <button className="surface-2 flex items-center justify-center gap-2 py-3 text-sm font-medium disabled:opacity-40"
             disabled={missing.length === 0}
-            onClick={() => copy(buildReminderText({ title: p.title, date: p.startsAt, url, missing }), `Reminder copied (${missing.length} still to answer)`)}>
-            <Bell className="w-4 h-4" />Copy reminder
+            onClick={() => copy(buildReminderText({ title: p.title, date: p.startsAt, url, missing, labels, locale }), t("av.copiedReminder", { n: missing.length }))}>
+            <Bell className="w-4 h-4" />{t("av.copyReminder")}
           </button>
         </div>
       )}
@@ -106,7 +122,7 @@ export function AvailabilityPanel(p: Props) {
 
       {/* Per player */}
       <ul className="surface divide-y divide-white/5">
-        {rows.length === 0 && <li className="p-4 text-sm text-pitch-400">Add players to the squad first.</li>}
+        {rows.length === 0 && <li className="p-4 text-sm text-pitch-400">{t("av.addPlayers")}</li>}
         {rows
           .slice()
           .sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status) || a.player.name.localeCompare(b.player.name))
@@ -115,16 +131,16 @@ export function AvailabilityPanel(p: Props) {
               <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", META[status].dot)} aria-hidden />
               <span className="flex-1 min-w-0 truncate text-sm">
                 {player.name}
-                <span className="sr-only"> — {META[status].label}</span>
+                <span className="sr-only"> — {t(META[status].label)}</span>
               </span>
               {canManage && !p.locked && (
                 <span className="flex gap-1">
                   {(["yes", "maybe", "no"] as const).map((s) => {
                     const Icon = s === "yes" ? Check : s === "maybe" ? HelpCircle : X;
                     return (
-                      <button key={s} aria-label={`Mark ${player.name} ${META[s].label}`} aria-pressed={status === s}
+                      <button key={s} aria-label={t("av.mark", { name: player.name, status: t(META[s].label) })} aria-pressed={status === s}
                         onClick={() => answer(player.id, s)}
-                        className={cn("w-9 h-9 rounded-lg flex items-center justify-center border transition-colors",
+                        className={cn("w-10 h-10 rounded-lg flex items-center justify-center border transition-colors active:scale-95",
                           status === s ? "bg-white text-black border-white" : "border-white/10 text-pitch-400 hover:text-white")}>
                         <Icon className="w-4 h-4" />
                       </button>
@@ -135,7 +151,7 @@ export function AvailabilityPanel(p: Props) {
               {p.showAttendance && canManage && (
                 <label className="flex items-center gap-1.5 text-xs text-pitch-400 pl-2">
                   <input type="checkbox" className="w-4 h-4 accent-white" checked={attended.has(player.id)} onChange={() => toggleAttended(player.id)} />
-                  Came
+                  {t("av.came")}
                 </label>
               )}
             </li>
@@ -145,11 +161,11 @@ export function AvailabilityPanel(p: Props) {
       {canManage && !p.locked && (
         <button onClick={toggleOpen} className="btn-ghost flex items-center gap-2">
           {closed ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-          {closed ? "Re-open answers" : "Close answers"}
+          {closed ? t("av.reopen") : t("av.close")}
         </button>
       )}
       {url && (
-        <button className="text-xs text-pitch-500 flex items-center gap-1.5 break-all text-left" onClick={() => copy(url, "Link copied")}>
+        <button className="text-xs text-pitch-500 flex items-center gap-1.5 break-all text-left" onClick={() => copy(url, t("c.copied"))}>
           <Copy className="w-3 h-3 shrink-0" />{url}
         </button>
       )}

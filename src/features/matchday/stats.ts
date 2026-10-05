@@ -60,33 +60,55 @@ export function playedSoFar(starters: string[], events: Ev[]): Set<string> {
   return played;
 }
 
-/** A message when the event is impossible, otherwise null. Used before saving from the matchday UI. */
+export type EventIssueCode = "subPick" | "pick" | "notOnPitch" | "alreadyOn" | "alreadyOff" | "selfAssist";
+export interface EventIssue { code: EventIssueCode; name?: string }
+
+const EN_ISSUE: Record<EventIssueCode, string> = {
+  subPick: "Pick who goes off and who comes on.",
+  pick: "Pick a player.",
+  notOnPitch: "{name} is not on the pitch.",
+  alreadyOn: "{name} is already on the pitch.",
+  alreadyOff: "{name} has already been substituted off.",
+  selfAssist: "A player can't assist their own goal.",
+};
+
+/** What is wrong with the event (as a code a UI can translate), or null when it is possible. */
+export function eventIssue(
+  starters: string[],
+  events: Ev[],
+  next: Pick<Ev, "type" | "side" | "playerId" | "relatedPlayerId">,
+  nameOf: (id: string) => string,
+): EventIssue | null {
+  if (next.side === "them") return null;
+  const pitch = new Set(onPitch(starters, events));
+
+  if (next.type === "sub") {
+    if (!next.playerId || !next.relatedPlayerId) return { code: "subPick" };
+    if (!pitch.has(next.playerId)) return { code: "notOnPitch", name: nameOf(next.playerId) };
+    if (pitch.has(next.relatedPlayerId)) return { code: "alreadyOn", name: nameOf(next.relatedPlayerId) };
+    if (playedSoFar(starters, events).has(next.relatedPlayerId)) return { code: "alreadyOff", name: nameOf(next.relatedPlayerId) };
+    return null;
+  }
+  if (next.type === "goal" || next.type === "own_goal" || next.type === "yellow" || next.type === "red") {
+    if (!next.playerId) return next.type === "goal" ? null : { code: "pick" };
+    if (!pitch.has(next.playerId)) return { code: "notOnPitch", name: nameOf(next.playerId) };
+  }
+  if (next.type === "goal" && next.relatedPlayerId) {
+    if (next.relatedPlayerId === next.playerId) return { code: "selfAssist" };
+    if (!pitch.has(next.relatedPlayerId)) return { code: "notOnPitch", name: nameOf(next.relatedPlayerId) };
+  }
+  return null;
+}
+
+/** English message for the same check. Used before saving from the matchday UI. */
 export function eventProblem(
   starters: string[],
   events: Ev[],
   next: Pick<Ev, "type" | "side" | "playerId" | "relatedPlayerId">,
   nameOf: (id: string) => string,
 ): string | null {
-  if (next.side === "them") return null;
-  const pitch = new Set(onPitch(starters, events));
-  const name = (id: string | null) => (id ? nameOf(id) : "");
-
-  if (next.type === "sub") {
-    if (!next.playerId || !next.relatedPlayerId) return "Pick who goes off and who comes on.";
-    if (!pitch.has(next.playerId)) return `${name(next.playerId)} is not on the pitch.`;
-    if (pitch.has(next.relatedPlayerId)) return `${name(next.relatedPlayerId)} is already on the pitch.`;
-    if (playedSoFar(starters, events).has(next.relatedPlayerId)) return `${name(next.relatedPlayerId)} has already been substituted off.`;
-    return null;
-  }
-  if (next.type === "goal" || next.type === "own_goal" || next.type === "yellow" || next.type === "red") {
-    if (!next.playerId) return next.type === "goal" ? null : "Pick a player.";
-    if (!pitch.has(next.playerId)) return `${name(next.playerId)} is not on the pitch.`;
-  }
-  if (next.type === "goal" && next.relatedPlayerId) {
-    if (next.relatedPlayerId === next.playerId) return "A player can't assist their own goal.";
-    if (!pitch.has(next.relatedPlayerId)) return `${name(next.relatedPlayerId)} is not on the pitch.`;
-  }
-  return null;
+  const issue = eventIssue(starters, events, next, nameOf);
+  return issue ? EN_ISSUE[issue.code].replace("{name}", issue.name ?? "") : null;
 }
 
 /**

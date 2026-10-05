@@ -1,0 +1,175 @@
+/** English is the source of truth: every other language must define exactly these keys. */
+export const en = {
+  // navigation
+  "nav.home": "Home", "nav.matches": "Matches", "nav.squad": "Squad", "nav.training": "Training",
+  "nav.stats": "Stats", "nav.settings": "Settings", "nav.main": "Main navigation", "nav.language": "Language",
+
+  // common
+  "c.save": "Save", "c.saving": "Saving…", "c.cancel": "Cancel", "c.delete": "Delete", "c.edit": "Edit",
+  "c.back": "Back", "c.loading": "Loading…", "c.wait": "Please wait…", "c.restore": "Restore",
+  "c.copied": "Copied", "c.copyFail": "Couldn't copy. Select and copy manually.", "c.viewing": "viewing", "c.current": "current",
+  "c.optional": "(optional)", "c.live": "LIVE", "c.cancelled": "Cancelled",
+
+  // errors
+  "err.generic": "Something went wrong. Please try again.",
+  "err.network": "No connection. Check your internet and try again.",
+  "err.permission": "You don't have permission to do that.",
+  "err.exists": "That already exists.",
+  "err.inUse": "That is still in use, so it can't be removed. Archive it instead.",
+  "err.invalid": "Those details aren't valid.",
+  "err.badCode": "That invite code is invalid or has expired.",
+  "err.tooMany": "Too many attempts. Please wait a while and try again.",
+  "err.badLogin": "Wrong email or password.",
+  "err.emailTaken": "An account with this email already exists.",
+  "err.shortPassword": "Password must be at least 6 characters.",
+  "err.emailNotConfirmed": "Email not confirmed. Turn off “Confirm email” in Supabase → Authentication → Providers → Email, then try again.",
+
+  // login
+  "login.tagline": "Squad, lineup and availability in minutes.",
+  "login.signin": "Sign in", "login.newClub": "New club", "login.join": "Join with code",
+  "login.name": "Your name", "login.club": "Club name", "login.code": "Invite code",
+  "login.email": "Email", "login.password": "Password (6+ characters)",
+  "login.btnCreate": "Create club", "login.btnJoin": "Join club",
+  "login.playersNote": "Players don't need an account — you share a link with them.",
+  "login.noClub": "You're signed in, but this account has no club yet.",
+  "login.loadFail": "Couldn't load your club: {error}",
+  "login.noClubHelp": "Choose New club or Join with code below to finish setting up.",
+  "login.otherAccount": "Use a different account",
+  "login.errName": "Enter your name.", "login.errClub": "Enter your club name.", "login.errCode": "Enter the invite code.",
+
+  // public availability page
+  "pub.notFound": "Link not found", "pub.notFoundHelp": "Ask your coach for a new link.",
+  "pub.loadFail": "Can't load right now", "pub.loadFailHelp": "Check your connection and reload the page.",
+  "pub.closed": "Answers are closed for this one.", "pub.who": "Who are you?",
+  "pub.emptySquad": "The squad is empty. Ask your coach.", "pub.hi": "Hi {name} —", "pub.notYou": "not you?",
+  "pub.yes": "I can play", "pub.maybe": "Maybe", "pub.no": "Can't make it",
+  "pub.savedYesMatch": "You're in", "pub.savedYesTraining": "You're coming",
+  "pub.savedMaybe": "Marked as maybe", "pub.savedNo": "Marked as not available",
+  "pub.canChange": "You can change it any time.",
+  "pub.errClosed": "The coach has closed answers for this one.",
+  "pub.errRate": "Too many taps. Wait a minute and try again.",
+  "pub.errSave": "Couldn't save. Check your connection and tap again.",
+
+  // availability (coach side)
+  "av.yes": "Available", "av.maybe": "Maybe", "av.none": "No response", "av.no": "Unavailable",
+  "av.copyLink": "Copy link", "av.copyReminder": "Copy reminder",
+  "av.copiedInvite": "Link & message copied — paste it in your group chat",
+  "av.copiedReminder": "Reminder copied ({n} still to answer)",
+  "av.addPlayers": "Add players to the squad first.", "av.mark": "Mark {name}: {status}",
+  "av.came": "Came", "av.close": "Close answers", "av.reopen": "Re-open answers",
+  "av.askMatch": "Can you play? Tap your name (10 seconds):",
+  "av.askTraining": "Are you coming? Tap your name (10 seconds):",
+  "av.reminder": "⏰ Reminder: {title} — {when}", "av.waiting": "Still waiting for: {names}",
+  "av.pleaseAnswer": "Please tap your name and answer:",
+
+  // matches
+  "m.title": "MATCHES", "m.new": "New match", "m.newTitle": "New match", "m.editTitle": "Edit match",
+  "m.empty": "No matches yet", "m.emptyHelp": "Add your next match, then share the availability link with your players.",
+  "m.addOne": "Add a match", "m.upcoming": "Upcoming", "m.played": "Played",
+  "m.vs": "vs", "m.at": "at", "m.notFound": "Match not found.", "m.backToMatches": "Matches",
+  "m.cancelMatch": "Cancel match", "m.reinstate": "Reinstate", "m.confirmDelete": "Delete this match for good?",
+  "m.cancelledNote": "Cancelled",
+  "tab.availability": "Availability", "tab.lineup": "Lineup", "tab.matchday": "Matchday", "tab.report": "Report",
+  "f.opponent": "Opponent", "f.kickoff": "Kick-off", "f.venue": "Venue", "f.venuePh": "Pitch / address",
+  "f.competition": "Competition", "f.length": "Length (minutes)", "f.home": "Home", "f.away": "Away", "f.notes": "Notes (optional)",
+  "f.errOpponent": "Who are you playing?", "f.errDate": "Pick a date and time.", "f.errLength": "Match length must be 10–150 minutes.",
+  "f.errSave": "Couldn't save.",
+  "comp.league": "League", "comp.cup": "Cup", "comp.friendly": "Friendly", "comp.tournament": "Tournament",
+
+  // dashboard
+  "dash.noUpcoming": "No upcoming match", "dash.noUpcomingHelp": "Add one and share the availability link with your players.",
+  "dash.nextTraining": "Next training", "dash.form": "Form", "dash.allStats": "All stats", "dash.lastResult": "Last result",
+  "dash.liveNow": "Live now", "dash.nextMatch": "Next match",
+  "dash.counts": "{yes} in · {maybe} maybe · {none} no response",
+  "dash.summary": "P{p} · W{w} D{d} L{l} · goals {gf}:{ga}",
+
+  // squad
+  "p.title": "SQUAD", "p.add": "Add player", "p.note": "Players don't need accounts. They answer availability through the link you share.",
+  "p.empty": "Your squad is empty", "p.emptyHelp": "Add your players — just names are enough.", "p.addFirst": "Add first player",
+  "p.editAria": "Edit {name}", "p.showArchived": "Show archived ({n})", "p.hideArchived": "Hide archived ({n})",
+  "p.addTitle": "Add player", "p.editTitle": "Edit player", "p.archive": "Archive player (keeps their stats)",
+  "pf.name": "Name", "pf.number": "Shirt number", "pf.position": "Position", "pf.phone": "Phone (optional)",
+  "pf.phoneHint": "Only the coaching staff can see this.", "pf.errName": "Enter a name.", "pf.errNumber": "Shirt number must be 0–99.",
+  "pos.Goalkeeper": "Goalkeeper", "pos.Right Back": "Right Back", "pos.Centre Back": "Centre Back", "pos.Left Back": "Left Back",
+  "pos.Defensive Midfielder": "Defensive Midfielder", "pos.Central Midfielder": "Central Midfielder",
+  "pos.Attacking Midfielder": "Attacking Midfielder", "pos.Right Winger": "Right Winger", "pos.Left Winger": "Left Winger",
+  "pos.Striker": "Striker", "pos.Second Striker": "Second Striker",
+
+  // training
+  "tr.title": "TRAINING", "tr.new": "New session", "tr.newTitle": "New training", "tr.editTitle": "Edit training",
+  "tr.empty": "No training sessions", "tr.emptyHelp": "Add a session and share the link — players tap Coming / Can't.",
+  "tr.addOne": "Add a session", "tr.upcoming": "Upcoming", "tr.past": "Past", "tr.single": "Training",
+  "tr.confirmDelete": "Delete this training and its attendance?",
+  "tf.when": "When", "tf.where": "Where", "tf.focus": "Focus (optional)",
+  "kind.fitness": "Fitness", "kind.technical": "Technical", "kind.tactical": "Tactical",
+  "kind.match_practice": "Match practice", "kind.other": "Other",
+
+  // stats
+  "st.title": "STATS", "st.empty": "No numbers yet", "st.emptyHelp": "Stats appear after you finish a match on matchday.",
+  "st.season": "Season", "st.player": "Player", "st.app": "App", "st.min": "Min", "st.g": "G", "st.a": "A", "st.train": "Train",
+  "st.appTip": "Appearances", "st.minTip": "Minutes", "st.gTip": "Goals", "st.aTip": "Assists", "st.yTip": "Yellow cards",
+  "st.rTip": "Red cards", "st.trainTip": "Training attendance",
+  "st.P": "P", "st.W": "W", "st.D": "D", "st.L": "L", "st.goalsLine": "Goals {gf}:{ga} · {pts} pts",
+  "st.footnote": "Only finished matches count. Own goals count for the other side.", "st.archived": "(archived)",
+
+  // settings
+  "s.title": "SETTINGS", "s.account": "Account", "s.signOut": "Sign out", "s.clubName": "Club name", "s.saved": "Saved",
+  "s.seasons": "Seasons", "s.newSeasonPh": "New season, e.g. 2026/27", "s.start": "Start",
+  "s.confirmSeason": "Start “{name}”? New matches and trainings will go into it. Old seasons stay available.",
+  "s.seasonStarted": "New season started", "s.staff": "Coaching staff", "s.invite": "+ Invite {role}",
+  "s.inviteHelp": "Send the code; they choose “Join with code” on the sign-in page. Valid for 7 days, one use.",
+  "s.copyCode": "Copy code", "s.codeCopied": "Code copied", "s.deleteInvite": "Delete invite",
+  "s.removeAria": "Remove {name}", "s.confirmRemove": "Remove {name}?",
+  "role.owner": "owner", "role.coach": "coach", "role.staff": "staff",
+
+  // lineup
+  "l.formation": "Formation", "l.custom": "Custom formation", "l.copyPrev": "Copy previous", "l.resetSpots": "Reset spots",
+  "l.clear": "Clear", "l.emptySlot": "Empty {label} slot", "l.toBench": "To bench", "l.remove": "Remove",
+  "l.hintDrag": "Drag a player onto the pitch, or tap a player and then a spot. Drag players on the pitch to fine-tune.",
+  "l.hintSlot": "Tap a player below to replace, or drag on the pitch to move.",
+  "l.placeFor": "Now tap a spot on the pitch for {name}.",
+  "l.bench": "Bench ({n})", "l.benchEmpty": "Drop players here for the bench.", "l.squad": "Squad ({n})",
+  "l.everyoneIn": "Everyone is in the lineup.", "l.save": "Save lineup", "l.saved": "Saved", "l.savedMsg": "Lineup saved",
+  "l.discard": "Discard", "l.none": "No lineup has been set for this match.", "l.copyFrom": "Copy lineup from…",
+  "l.noSaved": "No saved lineups yet.", "l.copiedFrom": "Copied from {opponent}. Check it, then save.",
+  "l.loading": "Loading lineup…", "l.benchAria": "Put {name} on the bench", "l.warnings": "Lineup warnings",
+  "l.image": "Image", "l.imageShare": "Share image", "l.imageFail": "Couldn't create the image.", "l.imageSaved": "Image saved",
+  "img.bench": "Bench", "img.vs": "vs", "img.footer": "Made with FC Manager",
+  "issue.duplicate": "{name} is in the lineup twice.", "issue.unknown_player": "{name} is no longer in the squad.",
+  "issue.too_many_starters": "A team starts with 11 players at most.", "issue.no_goalkeeper": "Nobody is in goal.",
+  "issue.incomplete": "Only {count} of 11 starters picked.", "issue.unavailable": "{name} said they can't play.",
+  "issue.no_response": "{name} hasn't answered yet.",
+
+  // matchday
+  "md.kickoff": "Kick off", "md.noLineup": "No lineup saved yet — you can still record the score and goals.",
+  "md.lineupReady": "Lineup is ready.", "md.cancelled": "This match is cancelled.", "md.fullTime": "Full time",
+  "md.ourGoal": "⚽ Our goal", "md.theirGoal": "⚽ {opponent} goal", "md.yellow": "🟨 Yellow", "md.red": "🟥 Red",
+  "md.sub": "🔁 Substitution", "md.ownGoal": "Own goal", "md.us": "Us", "md.timeline": "Timeline", "md.nothing": "Nothing recorded yet.",
+  "md.undo": "Undo this event", "md.reopen": "Reopen to correct",
+  "md.confirmReopen": "Reopen this match to correct it? Player stats are rebuilt when you finish again.",
+  "md.finishHelp": "Check the final score. Player stats are saved from the events you recorded.",
+  "md.ourGoals": "Our goals", "md.theirGoals": "Their goals", "md.finish": "Finish match", "md.back": "Back",
+  "md.minute": "Minute", "md.skip": "Not sure / skip", "md.noAssist": "No assist", "md.nobody": "No one available for this.",
+  "md.whoScored": "Who scored?", "md.assist": "Assist (optional)", "md.whoOwn": "Who put it in their own net?",
+  "md.whoCard": "Who got the card?", "md.whoOff": "Who goes off?", "md.whoOn": "Who comes on?",
+  "ev.goal": "Goal", "ev.ownGoal": "Own goal", "ev.sub": "Substitution", "ev.yellow": "Yellow card", "ev.red": "Red card",
+  "ev.goalUs": "Goal — {name}", "ev.goalUsAssist": "Goal — {name} (assist {assist})", "ev.goalNoScorer": "Goal — scorer not set",
+  "ev.goalThem": "Goal — {opponent}", "ev.ownGoalUs": "Own goal — {name}", "ev.ownGoalThem": "Own goal — {opponent}",
+  "ev.yellowCard": "Yellow card — {name}", "ev.redCard": "Red card — {name}", "ev.subLine": "Sub — {on} on for {off}",
+  "prob.pick": "Pick a player.", "prob.subPick": "Pick who goes off and who comes on.", "prob.pickOn": "Pick who comes on.",
+  "prob.notOnPitch": "{name} is not on the pitch.", "prob.alreadyOn": "{name} is already on the pitch.",
+  "prob.alreadyOff": "{name} has already been substituted off.", "prob.selfAssist": "A player can't assist their own goal.",
+
+  // report
+  "r.preview": "Report preview", "r.win": "Win", "r.draw": "Draw", "r.loss": "Loss",
+  "r.pdf": "PDF", "r.copyText": "Copy text", "r.print": "Print", "r.copiedText": "Report copied — paste it in the group chat",
+  "r.noPdf": "Couldn't create the PDF.", "r.goals": "Goals", "r.cards": "Cards", "r.subs": "Substitutions",
+  "r.xi": "Starting XI", "r.bench": "Bench", "r.notes": "Coach's notes", "r.notesPh": "How did it go?",
+  "r.saveNotes": "Save notes", "r.notesSaved": "Notes saved", "r.opponentTag": "opponent", "r.matchReport": "MATCH REPORT",
+  "r.min": "Min", "r.goal": "Goal", "r.card": "Card", "r.substitution": "Substitution", "r.no": "No.", "r.player": "Player",
+  "r.position": "Position", "r.played": "Played", "r.cameOn": "Came on", "r.unused": "Unused",
+  "r.yellowCard": "Yellow card", "r.redCard": "Red card", "r.secondYellow": "Second yellow (sent off)",
+  "r.ownGoal": "own goal", "r.assistWord": "assist", "r.unknownPlayer": "Unknown player", "r.goalFallback": "Goal",
+} as const;
+
+export type MessageKey = keyof typeof en;

@@ -1,3 +1,5 @@
+import { getLocale } from "@/i18n";
+
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /** Value for <input type="datetime-local"> in the user's own time zone. */
@@ -18,6 +20,7 @@ export function defaultKickoff(): Date {
   return d;
 }
 
-export const shortDate = (d: Date) =>
-  d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }) +
-  " · " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+export function shortDate(d: Date, locale = getLocale()): string {
+  return d.toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" }) +
+    " · " + d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", hour12: false });
+}

@@ -4,12 +4,35 @@ import { computeScore, onPitch, sortEvents } from "@/features/matchday/stats";
 
 export interface PersonRef { name: string; number: number | null }
 
+/** Every word the report prints. English by default; the UI passes translated labels. */
+export interface ReportLabels {
+  result: { Win: string; Draw: string; Loss: string };
+  competition: Record<string, string>;
+  matchReport: string; goals: string; cards: string; subs: string; startingXI: string; bench: string; notes: string;
+  assist: string; ownGoal: string; opponent: string; unknownPlayer: string; goalFallback: string;
+  yellow: string; red: string; secondYellow: string;
+  min: string; goal: string; card: string; substitution: string; no: string; player: string; position: string;
+  played: string; cameOn: string; unused: string;
+}
+
+export const EN_REPORT_LABELS: ReportLabels = {
+  result: { Win: "Win", Draw: "Draw", Loss: "Loss" },
+  competition: { league: "League", cup: "Cup", friendly: "Friendly", tournament: "Tournament" },
+  matchReport: "MATCH REPORT", goals: "Goals", cards: "Cards", subs: "Substitutions", startingXI: "Starting XI", bench: "Bench", notes: "Notes",
+  assist: "assist", ownGoal: "own goal", opponent: "opponent", unknownPlayer: "Unknown player", goalFallback: "Goal",
+  yellow: "Yellow card", red: "Red card", secondYellow: "Second yellow (sent off)",
+  min: "Min", goal: "Goal", card: "Card", substitution: "Substitution", no: "No.", player: "Player", position: "Position",
+  played: "Played", cameOn: "Came on", unused: "Unused",
+};
+
 export interface ReportInput {
   teamName: string;
   match: Pick<Match, "opponent" | "kickoff" | "venue" | "competition" | "isHome" | "ourScore" | "theirScore" | "notes" | "durationMinutes">;
   players: Map<string, PersonRef>;
   lineup: Lineup | null;
   events: MatchEvent[];
+  locale?: string;
+  labels?: ReportLabels;
 }
 
 export interface MatchReport {
@@ -27,12 +50,12 @@ export interface MatchReport {
   notes: string | null;
 }
 
-const COMPETITION: Record<string, string> = { league: "League", cup: "Cup", friendly: "Friendly", tournament: "Tournament" };
-
 export function buildReport(input: ReportInput): MatchReport {
   const { match, teamName, players } = input;
+  const L = input.labels ?? EN_REPORT_LABELS;
+  const locale = input.locale ?? "en-GB";
   const events = sortEvents(input.events);
-  const name = (id: string | null) => (id ? players.get(id)?.name ?? "Unknown player" : null);
+  const name = (id: string | null) => (id ? players.get(id)?.name ?? L.unknownPlayer : null);
 
   const computed = computeScore(events);
   const ours = match.ourScore ?? computed.us;
@@ -42,15 +65,15 @@ export function buildReport(input: ReportInput): MatchReport {
   const goals: MatchReport["goals"] = [];
   for (const e of events) {
     if (e.type === "goal" && e.side === "us") {
-      const scorer = name(e.playerId) ?? "Goal";
+      const scorer = name(e.playerId) ?? L.goalFallback;
       const assist = name(e.relatedPlayerId);
-      goals.push({ minute: e.minute, forTeam: "us", text: assist ? `${scorer} (assist ${assist})` : scorer });
+      goals.push({ minute: e.minute, forTeam: "us", text: assist ? `${scorer} (${L.assist} ${assist})` : scorer });
     } else if (e.type === "goal") {
       goals.push({ minute: e.minute, forTeam: "them", text: match.opponent });
     } else if (e.type === "own_goal" && e.side === "us") {
-      goals.push({ minute: e.minute, forTeam: "them", text: `${name(e.playerId)} (own goal)` });
+      goals.push({ minute: e.minute, forTeam: "them", text: `${name(e.playerId)} (${L.ownGoal})` });
     } else if (e.type === "own_goal") {
-      goals.push({ minute: e.minute, forTeam: "us", text: `Own goal (${match.opponent})` });
+      goals.push({ minute: e.minute, forTeam: "us", text: `${L.ownGoal.charAt(0).toUpperCase()}${L.ownGoal.slice(1)} (${match.opponent})` });
     }
   }
 
@@ -85,9 +108,9 @@ export function buildReport(input: ReportInput): MatchReport {
     }));
   }
 
-  const date = match.kickoff.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  const time = match.kickoff.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
-  const meta = [`${date}, ${time}`, match.venue, COMPETITION[match.competition]].filter(Boolean).join(" · ");
+  const date = match.kickoff.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const time = match.kickoff.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", hour12: false });
+  const meta = [`${date}, ${time}`, match.venue, L.competition[match.competition]].filter(Boolean).join(" · ");
 
   const us = { name: teamName, score: ours };
   const them = { name: match.opponent, score: theirs };
@@ -99,23 +122,22 @@ export function buildReport(input: ReportInput): MatchReport {
   };
 }
 
-const CARD_TEXT = { yellow: "Yellow", red: "Red", second_yellow: "Second yellow (sent off)" } as const;
-
 /** Plain text for WhatsApp / Viber. */
-export function reportToText(r: MatchReport): string {
+export function reportToText(r: MatchReport, labels: ReportLabels = EN_REPORT_LABELS): string {
+  const cardText = { yellow: labels.yellow, red: labels.red, second_yellow: labels.secondYellow } as const;
   const lines: string[] = [
     `${r.home.name} ${r.home.score} – ${r.away.score} ${r.away.name}`,
-    `${r.result} · ${r.meta}`,
+    `${labels.result[r.result]} · ${r.meta}`,
   ];
   if (r.goals.length) {
-    lines.push("", "⚽ Goals", ...r.goals.map((g) => `${g.minute}' ${g.text}`));
+    lines.push("", `⚽ ${labels.goals}`, ...r.goals.map((g) => `${g.minute}' ${g.text}`));
   }
-  if (r.cards.length) lines.push("", "🟨 Cards", ...r.cards.map((c) => `${c.minute}' ${c.player} — ${CARD_TEXT[c.kind]}`));
-  if (r.subs.length) lines.push("", "🔁 Substitutions", ...r.subs.map((s) => `${s.minute}' ${s.off} ➜ ${s.on}`));
+  if (r.cards.length) lines.push("", `🟨 ${labels.cards}`, ...r.cards.map((c) => `${c.minute}' ${c.player} — ${cardText[c.kind]}`));
+  if (r.subs.length) lines.push("", `🔁 ${labels.subs}`, ...r.subs.map((s) => `${s.minute}' ${s.off} ➜ ${s.on}`));
   if (r.startingXI.length) {
-    lines.push("", "Starting XI", r.startingXI.map((p) => `${p.number != null ? `#${p.number} ` : ""}${p.name}`).join(", "));
+    lines.push("", labels.startingXI, r.startingXI.map((p) => `${p.number != null ? `#${p.number} ` : ""}${p.name}`).join(", "));
   }
-  if (r.bench.length) lines.push("Bench: " + r.bench.map((p) => p.name).join(", "));
+  if (r.bench.length) lines.push(`${labels.bench}: ` + r.bench.map((p) => p.name).join(", "));
   if (r.notes) lines.push("", r.notes);
   return lines.join("\n");
 }

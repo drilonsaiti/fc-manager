@@ -38,33 +38,69 @@ export function formatKickoff(date: Date, locale = "en-GB"): string {
   return `${day}, ${time}`;
 }
 
-const ASK: Record<EventKind, string> = {
-  match: "Can you play? Tap your name (10 seconds):",
-  training: "Are you coming? Tap your name (10 seconds):",
+export interface MessageLabels {
+  askMatch: string;
+  askTraining: string;
+  /** Uses {title} and {when}. */
+  reminder: string;
+  /** Uses {names}. */
+  waiting: string;
+  pleaseAnswer: string;
+}
+
+export const EN_LABELS: MessageLabels = {
+  askMatch: "Can you play? Tap your name (10 seconds):",
+  askTraining: "Are you coming? Tap your name (10 seconds):",
+  reminder: "⏰ Reminder: {title} — {when}",
+  waiting: "Still waiting for: {names}",
+  pleaseAnswer: "Please tap your name and answer:",
 };
 
+const put = (text: string, vars: Record<string, string>) => text.replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m);
+const tidy = (lines: string[]) => lines.filter((line, i, all) => line !== "" || (i > 0 && all[i - 1] !== ""));
+
 /** Text the coach pastes into WhatsApp/Viber when asking for availability. */
-export function buildInviteText(opts: { kind: EventKind; title: string; date: Date; place: string; url: string }): string {
-  return [
+export function buildInviteText(opts: {
+  kind: EventKind; title: string; date: Date; place: string; url: string; labels?: MessageLabels; locale?: string;
+}): string {
+  const l = opts.labels ?? EN_LABELS;
+  return tidy([
     `⚽ ${opts.title}`,
-    `📅 ${formatKickoff(opts.date)}`,
+    `📅 ${formatKickoff(opts.date, opts.locale)}`,
     opts.place ? `📍 ${opts.place}` : "",
     "",
-    ASK[opts.kind],
+    opts.kind === "match" ? l.askMatch : l.askTraining,
     opts.url,
-  ].filter((line, i, all) => line !== "" || (i > 0 && all[i - 1] !== "")).join("\n");
+  ]).join("\n");
 }
 
 /** Reminder addressed to the players who have not answered yet. */
-export function buildReminderText(opts: { title: string; date: Date; url: string; missing: RosterEntry[] }): string {
+export function buildReminderText(opts: {
+  title: string; date: Date; url: string; missing: RosterEntry[]; labels?: MessageLabels; locale?: string;
+}): string {
+  const l = opts.labels ?? EN_LABELS;
   const names = opts.missing.map((p) => p.name).join(", ");
-  return [
-    `⏰ Reminder: ${opts.title} — ${formatKickoff(opts.date)}`,
-    names ? `Still waiting for: ${names}` : "",
+  return tidy([
+    put(l.reminder, { title: opts.title, when: formatKickoff(opts.date, opts.locale) }),
+    names ? put(l.waiting, { names }) : "",
     "",
-    "Please tap your name and answer:",
+    l.pleaseAnswer,
     opts.url,
-  ].filter((line, i, all) => line !== "" || (i > 0 && all[i - 1] !== "")).join("\n");
+  ]).join("\n");
+}
+
+/**
+ * The public page gets an English title from the database ("vs Rivals", "Training · match practice").
+ * Rebuild it in the viewer's language.
+ */
+export function publicHeading(
+  event: { kind: EventKind; title: string },
+  words: { vs: string; training: string; kinds: Record<string, string> },
+): string {
+  if (event.kind === "match") return `${words.vs} ${event.title.replace(/^vs /, "")}`;
+  const kind = event.title.split(" · ")[1];
+  const label = kind ? words.kinds[kind.replace(/ /g, "_")] : undefined;
+  return label ? `${words.training} · ${label}` : words.training;
 }
 
 export function buildShareUrl(origin: string, token: string): string {
