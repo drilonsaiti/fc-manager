@@ -3,7 +3,7 @@ import { buildSeasonTable, buildTeamSummary, resultLetter } from "./aggregate";
 import type { Player, SeasonPlayerStat } from "@/types";
 
 const player = (id: string, name: string, active = true): Player =>
-  ({ id, teamId: "t", name, number: null, positions: [], phone: null, active });
+  ({ id, teamId: "t", name, number: null, positions: [], phone: null, active, accessCode: "x" });
 const stat = (playerId: string, o: Partial<SeasonPlayerStat> = {}): SeasonPlayerStat => ({
   playerId, appearances: 0, starts: 0, subAppearances: 0, minutes: 0, goals: 0, assists: 0,
   yellow: 0, red: 0, ownGoals: 0, wins: 0, draws: 0, losses: 0, ...o,

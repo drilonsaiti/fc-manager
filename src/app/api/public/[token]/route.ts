@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { serviceClient } from "@/lib/supabase/server";
-import { clientIp, isToken, originAllowed, validateSubmission, visitorKey } from "@/lib/public/validate";
+import { clientIp, isCode, isToken, originAllowed, validateSubmission, visitorKey } from "@/lib/public/validate";
 
 export const dynamic = "force-dynamic";
 
@@ -8,15 +8,18 @@ const noStore = { "Cache-Control": "no-store" };
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: noStore });
 
 /** The event behind a public link: title, time, place and the squad's names. Nothing private. */
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   if (!isToken(token)) return json({ error: "not_found" }, 404);
+  const code = req.nextUrl.searchParams.get("p");
+  if (code !== null && !isCode(code)) return json({ error: "not_found" }, 404);
   try {
-    const { data, error } = await serviceClient().rpc("public_get_event", { p_token: token });
+    const { data, error } = await serviceClient().rpc("public_get_event", { p_token: token, p_code: code });
     if (error) return json({ error: "server" }, 500);
     if (!data) return json({ error: "not_found" }, 404);
-    // A short shared cache absorbs the burst when the link lands in a group chat.
-    return NextResponse.json(data, { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30" } });
+    // The generic link is the same for everyone, so a short shared cache absorbs the burst when it lands
+    // in a group chat. A personal link carries a secret and is never cached.
+    return NextResponse.json(data, { headers: { "Cache-Control": code ? "no-store" : "public, s-maxage=10, stale-while-revalidate=30" } });
   } catch {
     return json({ error: "server" }, 500);
   }
@@ -48,6 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       p_player: verdict.playerId,
       p_status: verdict.status,
       p_client: visitorKey(clientIp(req.headers), salt),
+      p_code: verdict.code,
     });
     if (error) return json({ error: "server" }, 500);
     const result = data as { ok?: boolean; error?: string };

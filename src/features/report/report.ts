@@ -1,3 +1,4 @@
+import { formatDay, formatTime } from "@/i18n/dates";
 import type { Lineup, Match, MatchEvent } from "@/types";
 import { fromEntries, startersOf } from "@/features/lineup/lineup";
 import { computeScore, onPitch, sortEvents } from "@/features/matchday/stats";
@@ -108,8 +109,8 @@ export function buildReport(input: ReportInput): MatchReport {
     }));
   }
 
-  const date = match.kickoff.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  const time = match.kickoff.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", hour12: false });
+  const date = formatDay(match.kickoff, locale, { weekday: "long", month: "long", year: true });
+  const time = formatTime(match.kickoff);
   const meta = [`${date}, ${time}`, match.venue, L.competition[match.competition]].filter(Boolean).join(" · ");
 
   const us = { name: teamName, score: ours };

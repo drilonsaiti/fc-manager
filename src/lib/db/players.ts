@@ -4,17 +4,17 @@ import type { Player } from "@/types";
 
 interface PlayerRow {
   id: string; team_id: string; name: string; shirt_number: number | null;
-  positions: string[]; phone: string | null; active: boolean;
+  positions: string[]; phone: string | null; active: boolean; access_code: string;
 }
 
 export const toPlayer = (r: PlayerRow): Player => ({
   id: r.id, teamId: r.team_id, name: r.name, number: r.shirt_number,
-  positions: r.positions ?? [], phone: r.phone, active: r.active,
+  positions: r.positions ?? [], phone: r.phone, active: r.active, accessCode: r.access_code,
 });
 
 export async function listPlayers(teamId: string): Promise<Player[]> {
   const rows = unwrap(await supabase().from("players")
-    .select("id, team_id, name, shirt_number, positions, phone, active")
+    .select("id, team_id, name, shirt_number, positions, phone, active, access_code")
     .eq("team_id", teamId).order("name")) as PlayerRow[];
   return rows.map(toPlayer);
 }

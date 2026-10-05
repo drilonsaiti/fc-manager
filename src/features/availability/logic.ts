@@ -1,3 +1,4 @@
+import { formatDay, formatTime } from "@/i18n/dates";
 import type { AvailabilityState, AvailabilityStatus, EventKind } from "@/types";
 
 export interface RosterEntry { id: string; name: string; number?: number | null }
@@ -33,9 +34,7 @@ export function summarize(rows: AvailabilityRow[]): AvailabilitySummary {
 }
 
 export function formatKickoff(date: Date, locale = "en-GB"): string {
-  const day = date.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
-  const time = date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", hour12: false });
-  return `${day}, ${time}`;
+  return `${formatDay(date, locale, { weekday: "long", month: "long" })}, ${formatTime(date)}`;
 }
 
 export interface MessageLabels {
@@ -105,4 +104,22 @@ export function publicHeading(
 
 export function buildShareUrl(origin: string, token: string): string {
   return `${origin.replace(/\/$/, "")}/a/${token}`;
+}
+
+/** The event link that already knows who is tapping. Works on any phone or network. */
+export function buildPersonalUrl(origin: string, token: string, code: string): string {
+  return `${buildShareUrl(origin, token)}?p=${code}`;
+}
+
+/** One line per player: "Name: link". The coach sends each person their own line. */
+export function buildPersonalLinksText(opts: {
+  title: string; date: Date; entries: { name: string; url: string }[]; locale?: string;
+}): string {
+  return [`⚽ ${opts.title} — ${formatKickoff(opts.date, opts.locale)}`, "", ...opts.entries.map((e) => `${e.name}: ${e.url}`)].join("\n");
+}
+
+/** WhatsApp deep link with a prefilled message; null when the phone number has no digits. */
+export function whatsappUrl(phone: string | null, text: string): string | null {
+  const digits = (phone ?? "").replace(/\D/g, "").replace(/^00/, "");
+  return digits.length >= 6 ? `https://wa.me/${digits}?text=${encodeURIComponent(text)}` : null;
 }

@@ -2,7 +2,7 @@
 
 export type Role = "owner" | "coach" | "staff";
 
-export interface Team { id: string; name: string }
+export interface Team { id: string; name: string; strictLinks: boolean }
 
 export interface Member {
   userId: string;
@@ -23,6 +23,8 @@ export interface Player {
   positions: string[];
   phone: string | null;
   active: boolean;
+  /** Private code that turns an event link into this player's personal link. Coaches only. */
+  accessCode: string;
 }
 
 export type MatchStatus = "scheduled" | "live" | "final" | "cancelled";
@@ -136,5 +138,10 @@ export interface PublicEvent {
   place: string;
   team: string;
   closed: boolean;
+  teamId: string;
+  /** Club only accepts personal links; the shared link lists no names. */
+  strict: boolean;
+  /** Set when the link carried a valid personal code. */
+  me: { id: string; name: string; number: number | null } | null;
   roster: { id: string; name: string; number: number | null }[];
 }

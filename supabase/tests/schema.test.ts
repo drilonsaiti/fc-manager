@@ -47,9 +47,9 @@ describe("create_team / membership", () => {
       .rejects.toThrow(/row-level security/);
   });
 
-  it("a user can own at most 3 teams", async () => {
+  it("a user can own at most 12 teams", async () => {
     const owner = await newUser(db);
-    await newTeam(db, owner); await newTeam(db, owner); await newTeam(db, owner);
+    for (let i = 0; i < 12; i++) await newTeam(db, owner);
     await expect(run(db, user(owner), "select public.create_team('Fourth', 'Owner')")).rejects.toThrow(/team limit/);
   });
 });
@@ -353,5 +353,66 @@ describe("privileges", () => {
     const owner = await newUser(db);
     await expect(run(db, user(owner), "select * from app.rate_hits")).rejects.toThrow(/permission denied/);
     expect(await run(db, SYSTEM, "select count(*)::int as n from app.rate_hits")).toBeDefined();
+  });
+});
+
+describe("personal links and strict mode", () => {
+  async function setup() {
+    const owner = await newUser(db);
+    const t = await newTeam(db, owner);
+    const ardit = await addPlayer(db, owner, t.teamId, "Ardit", 7);
+    const besnik = await addPlayer(db, owner, t.teamId, "Besnik", 10);
+    const m = await addMatch(db, owner, t.teamId, t.seasonId);
+    const codes = await run<{ id: string; access_code: string }>(db, user(owner), "select id, access_code from public.players where team_id = $1", [t.teamId]);
+    const code = (id: string) => codes.find((c) => c.id === id)!.access_code;
+    return { owner, ...t, ardit, besnik, ...m, code };
+  }
+  const submit = (token: string, player: string, client: string, code: string | null) =>
+    run<{ r: Record<string, unknown> }>(db, SERVICE, "select public.public_submit_response($1, $2, 'yes', $3, $4) as r", [token, player, client, code]).then((x) => x[0].r);
+  const get = (token: string, code: string | null) =>
+    run<{ e: Record<string, unknown> }>(db, SERVICE, "select public.public_get_event($1, $2) as e", [token, code]).then((x) => x[0].e);
+
+  it("every player has a long unique private code", async () => {
+    const s = await setup();
+    expect(s.code(s.ardit)).toMatch(/^[a-f0-9]{20}$/);
+    expect(s.code(s.ardit)).not.toBe(s.code(s.besnik));
+  });
+
+  it("the personal link tells the page who it is, without the roster being needed", async () => {
+    const s = await setup();
+    const e = await get(s.token, s.code(s.ardit));
+    expect(e.me).toMatchObject({ id: s.ardit, name: "Ardit" });
+    expect((await get(s.token, "wrong"))?.me).toBeNull();
+    expect((await get(s.token, null))?.me).toBeNull();
+  });
+
+  it("a wrong or someone else's code is refused even in open mode", async () => {
+    const s = await setup();
+    expect(await submit(s.token, s.ardit, "c1", s.code(s.besnik))).toEqual({ error: "bad_player" });
+    expect(await submit(s.token, s.ardit, "c2", "nope")).toEqual({ error: "bad_player" });
+    expect(await submit(s.token, s.ardit, "c3", s.code(s.ardit))).toEqual({ ok: true });
+    expect(await submit(s.token, s.besnik, "c4", null)).toEqual({ ok: true }); // open mode still allows picking a name
+  });
+
+  it("strict mode hides the roster and only accepts personal links", async () => {
+    const s = await setup();
+    await run(db, user(s.owner), "update public.teams set strict_links = true where id = $1", [s.teamId]);
+    const e = await get(s.token, null);
+    expect(e.strict).toBe(true);
+    expect(e.roster).toEqual([]);
+    expect(await submit(s.token, s.ardit, "c5", null)).toEqual({ error: "bad_player" });
+    expect(await submit(s.token, s.ardit, "c6", s.code(s.besnik))).toEqual({ error: "bad_player" });
+    expect(await submit(s.token, s.ardit, "c7", s.code(s.ardit))).toEqual({ ok: true });
+    expect((await get(s.token, s.code(s.ardit))).me).toMatchObject({ name: "Ardit" });
+  });
+
+  it("only the owner can switch strict mode", async () => {
+    const s = await setup();
+    const coach = await newUser(db);
+    await run(db, user(s.owner), "insert into public.team_invites (team_id, role, created_by, code) values ($1, 'coach', $2, 'abc123')", [s.teamId, s.owner]);
+    await run(db, user(coach), "select public.join_team('abc123', 'Coach')");
+    await run(db, user(coach), "update public.teams set strict_links = true where id = $1", [s.teamId]);
+    const [{ strict_links }] = await run<{ strict_links: boolean }>(db, user(s.owner), "select strict_links from public.teams where id = $1", [s.teamId]);
+    expect(strict_links).toBe(false);
   });
 });

@@ -86,3 +86,21 @@ describe("messages", () => {
     expect(buildShareUrl("https://x.test/", "tok")).toBe("https://x.test/a/tok");
   });
 });
+
+import { buildPersonalLinksText, buildPersonalUrl, whatsappUrl } from "./logic";
+
+describe("personal links", () => {
+  it("adds the player's code to the event link", () => {
+    expect(buildPersonalUrl("https://x.app/", "tok", "abc")).toBe("https://x.app/a/tok?p=abc");
+  });
+  it("lists one line per player", () => {
+    const text = buildPersonalLinksText({ title: "vs Rivals", date: new Date("2026-10-10T16:00:00"), entries: [{ name: "Ardit", url: "u1" }, { name: "Besnik", url: "u2" }] });
+    expect(text.split("\n").slice(-2)).toEqual(["Ardit: u1", "Besnik: u2"]);
+  });
+  it("builds a WhatsApp link only for a usable number", () => {
+    expect(whatsappUrl("+389 70 123 456", "hi there")).toBe("https://wa.me/38970123456?text=hi%20there");
+    expect(whatsappUrl("0038970123456", "x")).toContain("wa.me/38970123456");
+    expect(whatsappUrl("12", "x")).toBeNull();
+    expect(whatsappUrl(null, "x")).toBeNull();
+  });
+});

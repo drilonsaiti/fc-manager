@@ -2,7 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase/client";
-import { fetchClub } from "@/lib/db/teams";
+import { fetchClub, type Membership } from "@/lib/db/teams";
 import { friendlyError } from "@/lib/db/util";
 import type { Member, Season, Team } from "@/types";
 
@@ -13,8 +13,13 @@ interface Ctx {
   loadError: string | null;
   userId: string | null;
   email: string | null;
+  /** The current team and the user's role in it. */
   member: Member | null;
   team: Team | null;
+  /** Every team the user belongs to (e.g. U19, U17). */
+  teams: Membership[];
+  switchTeam: (teamId: string) => void;
+  /** Seasons of the current team. */
   seasons: Season[];
   /** The season new matches/trainings go into and stats are shown for. */
   season: Season | null;
@@ -27,8 +32,13 @@ interface Ctx {
 
 const AuthContext = createContext<Ctx | null>(null);
 
-interface Loaded { member: Member | null; team: Team | null; seasons: Season[]; error: string | null }
-const EMPTY: Loaded = { member: null, team: null, seasons: [], error: null };
+interface Loaded { memberships: Membership[]; seasons: Season[]; error: string | null }
+const EMPTY: Loaded = { memberships: [], seasons: [], error: null };
+const TEAM_KEY = "fcm:team";
+
+function storedTeam(): string | null {
+  try { return localStorage.getItem(TEAM_KEY); } catch { return null; }
+}
 
 async function loadClub(userId: string): Promise<Loaded> {
   const club = await fetchClub(userId);
@@ -40,6 +50,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionReady, setSessionReady] = useState(false);
   const [club, setClub] = useState<{ userId: string; data: Loaded } | null>(null);
   const [chosenSeason, setChosenSeason] = useState<string | null>(null);
+  const [chosenTeam, setChosenTeam] = useState<string | null>(null);
+
+  const switchTeam = useCallback((id: string) => {
+    setChosenTeam(id);
+    setChosenSeason(null);
+    try { localStorage.setItem(TEAM_KEY, id); } catch { /* ignore */ }
+  }, []);
 
   useEffect(() => {
     const { data } = supabase().auth.onAuthStateChange((_event, s) => {
@@ -74,18 +91,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Ctx>(() => {
     const data = club && club.userId === userId ? club.data : EMPTY;
     const loading = !sessionReady || (!!userId && !(club && club.userId === userId));
-    const season =
-      data.seasons.find((s) => s.id === chosenSeason) ?? data.seasons.find((s) => s.isActive) ?? data.seasons[0] ?? null;
-    const role = data.member?.role;
+    const wanted = chosenTeam ?? (data.memberships.length > 1 ? storedTeam() : null);
+    const current = data.memberships.find((m) => m.team.id === wanted) ?? data.memberships[0] ?? null;
+    const seasons = current ? data.seasons.filter((x) => x.teamId === current.team.id) : [];
+    const season = seasons.find((x) => x.id === chosenSeason) ?? seasons.find((x) => x.isActive) ?? seasons[0] ?? null;
+    const role = current?.member.role;
     return {
       loading, loadError: data.error, userId, email: session?.user.email ?? null,
-      member: data.member, team: data.team, seasons: data.seasons, season,
+      member: current?.member ?? null, team: current?.team ?? null, teams: data.memberships, switchTeam,
+      seasons, season,
       setSeasonId: setChosenSeason,
       canManage: role === "owner" || role === "coach" || role === "staff",
       isOwner: role === "owner",
       reload, signOut,
     };
-  }, [club, userId, sessionReady, session, chosenSeason, reload, signOut]);
+  }, [club, userId, sessionReady, session, chosenSeason, chosenTeam, switchTeam, reload, signOut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

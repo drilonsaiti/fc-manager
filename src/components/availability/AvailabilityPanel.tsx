@@ -1,13 +1,13 @@
 "use client";
 import { useState } from "react";
-import { Bell, Check, Copy, HelpCircle, Link2, Lock, Unlock, X } from "lucide-react";
+import { Bell, Check, ChevronDown, Copy, HelpCircle, Link2, Lock, MessageCircle, Unlock, UserCheck, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAvailability } from "@/hooks/data";
 import { setResponse, setAttended } from "@/lib/db/responses";
 import { setResponsesOpen as setMatchOpen } from "@/lib/db/matches";
 import { setTrainingResponsesOpen } from "@/lib/db/trainings";
 import { friendlyError } from "@/lib/db/util";
-import { buildInviteText, buildReminderText, buildShareUrl } from "@/features/availability/logic";
+import { buildInviteText, buildPersonalLinksText, buildPersonalUrl, buildReminderText, buildShareUrl, whatsappUrl } from "@/features/availability/logic";
 import { messageLabels } from "@/i18n/labels";
 import { useT, type MessageKey } from "@/i18n";
 import { copyText } from "@/lib/utils/clipboard";
@@ -91,6 +91,8 @@ export function AvailabilityPanel(p: Props) {
   const missing = summary.none.map((r) => r.player);
   const closed = p.locked || !p.responsesOpen;
   const labels = messageLabels(t);
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const personalUrl = (x: Player) => buildPersonalUrl(origin, p.shareToken, x.accessCode);
 
   return (
     <section className="space-y-4" aria-label={t("tab.availability")}>
@@ -163,6 +165,47 @@ export function AvailabilityPanel(p: Props) {
           {closed ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
           {closed ? t("av.reopen") : t("av.close")}
         </button>
+      )}
+      {canManage && !p.locked && p.players.some((x) => x.active) && (
+        <details className="surface group">
+          <summary className="flex items-center gap-2 px-4 py-3 text-sm cursor-pointer list-none select-none">
+            <UserCheck className="w-4 h-4 text-pitch-400" />
+            <span className="flex-1">{t("av.personal")}</span>
+            <ChevronDown className="w-4 h-4 text-pitch-500 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="px-4 pb-4 space-y-3 border-t border-white/5 pt-3">
+            <p className="text-xs text-pitch-400">{t("av.personalHelp")}</p>
+            <button className="btn-primary w-full py-2.5 text-sm flex items-center justify-center gap-2"
+              onClick={() => copy(buildPersonalLinksText({
+                title: p.title, date: p.startsAt, locale,
+                entries: p.players.filter((x) => x.active).map((x) => ({ name: x.name, url: personalUrl(x) })),
+              }), t("av.copiedPersonal", { n: p.players.filter((x) => x.active).length }))}>
+              <Copy className="w-4 h-4" />{t("av.copyAllPersonal")}
+            </button>
+            <ul className="divide-y divide-white/5">
+              {p.players.filter((x) => x.active).map((x) => {
+                const text = buildInviteText({ kind: p.kind, title: p.title, date: p.startsAt, place: p.place, url: personalUrl(x), labels, locale });
+                const wa = whatsappUrl(x.phone, text);
+                return (
+                  <li key={x.id} className="flex items-center gap-2 py-1.5">
+                    <span className="flex-1 min-w-0 truncate text-sm">{x.name}</span>
+                    {wa && (
+                      <a href={wa} target="_blank" rel="noopener noreferrer" aria-label={t("av.whatsapp", { name: x.name })}
+                        className="w-10 h-10 rounded-lg border border-white/10 flex items-center justify-center text-pitch-300 hover:text-white">
+                        <MessageCircle className="w-4 h-4" />
+                      </a>
+                    )}
+                    <button aria-label={t("av.copyOne", { name: x.name })}
+                      onClick={() => copy(text, t("av.copiedOne", { name: x.name }))}
+                      className="w-10 h-10 rounded-lg border border-white/10 flex items-center justify-center text-pitch-300 hover:text-white">
+                      <Link2 className="w-4 h-4" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </details>
       )}
       {url && (
         <button className="text-xs text-pitch-500 flex items-center gap-1.5 break-all text-left" onClick={() => copy(url, t("c.copied"))}>

@@ -4,16 +4,18 @@ export const MIN_ELAPSED_MS = 600;
 const MAX_ELAPSED_MS = 7 * 24 * 3600 * 1000;
 const TOKEN = /^[a-f0-9]{32}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CODE = /^[a-f0-9]{20}$/;
 const STATUSES = ["yes", "maybe", "no"] as const;
 
 export type Status = (typeof STATUSES)[number];
 
 export type Verdict =
-  | { kind: "ok"; token: string; playerId: string; status: Status }
+  | { kind: "ok"; token: string; playerId: string; status: Status; code: string | null }
   | { kind: "bot" }
   | { kind: "invalid"; reason: "token" | "body" | "player" | "status" };
 
 export const isToken = (t: string) => TOKEN.test(t);
+export const isCode = (c: string) => CODE.test(c);
 
 /**
  * Cheap, layered checks that run before the database is touched.
@@ -31,6 +33,8 @@ export function validateSubmission(token: string, body: unknown): Verdict {
   if (typeof b.playerId !== "string" || !UUID.test(b.playerId)) return { kind: "invalid", reason: "player" };
   if (typeof b.status !== "string" || !(STATUSES as readonly string[]).includes(b.status)) return { kind: "invalid", reason: "status" };
 
+  if (b.code !== undefined && b.code !== null && (typeof b.code !== "string" || !CODE.test(b.code))) return { kind: "invalid", reason: "player" };
+
   // Honeypot: a field real people never see or fill.
   if (typeof b.website === "string" && b.website.trim() !== "") return { kind: "bot" };
   if (b.website !== undefined && typeof b.website !== "string") return { kind: "bot" };
@@ -41,7 +45,7 @@ export function validateSubmission(token: string, body: unknown): Verdict {
     return { kind: "bot" };
   }
 
-  return { kind: "ok", token, playerId: b.playerId.toLowerCase(), status: b.status as Status };
+  return { kind: "ok", token, playerId: b.playerId.toLowerCase(), status: b.status as Status, code: typeof b.code === "string" ? b.code : null };
 }
 
 /** Same-site requests only. A missing Origin (curl, some native clients) is allowed; a foreign one is not. */

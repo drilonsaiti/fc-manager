@@ -19,6 +19,18 @@ const OPTIONS: { status: AvailabilityStatus; label: MessageKey; icon: typeof Che
 
 const since = (t: number) => Date.now() - t;
 
+/** "Who am I" for a team, remembered on this phone only. A convenience, never proof of identity. */
+interface Remembered { id: string; code: string | null }
+const memKey = (teamId: string) => `fcm:me:${teamId}`;
+function readMemory(teamId: string): Remembered | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(memKey(teamId)) ?? "null") as Remembered | null;
+    return v && typeof v.id === "string" ? { id: v.id, code: typeof v.code === "string" ? v.code : null } : null;
+  } catch { return null; }
+}
+function writeMemory(teamId: string, v: Remembered) { try { localStorage.setItem(memKey(teamId), JSON.stringify(v)); } catch { /* ignore */ } }
+function forgetMemory(teamId: string) { try { localStorage.removeItem(memKey(teamId)); } catch { /* ignore */ } }
+
 const savedKey = (kind: PublicEvent["kind"], s: AvailabilityStatus): MessageKey =>
   s === "yes" ? (kind === "match" ? "pub.savedYesMatch" : "pub.savedYesTraining") : s === "maybe" ? "pub.savedMaybe" : "pub.savedNo";
 
@@ -27,37 +39,59 @@ export default function PublicAvailabilityPage() {
   const { t, locale } = useT();
   const [load, setLoad] = useState<Load>({ state: "loading" });
   const [me, setMe] = useState<string | null>(null);
+  /** Personal code from the link (?p=) or remembered on this phone. It travels with every answer. */
+  const [code, setCode] = useState<string | null>(null);
   const [answer, setAnswer] = useState<AvailabilityStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [trap, setTrap] = useState("");
   const shownAt = useRef(0);
-  const storeKey = `fcm:player:${token}`;
 
   useEffect(() => {
     shownAt.current = Date.now();
     let cancelled = false;
-    fetch(`/api/public/${token}`, { cache: "no-store" })
-      .then(async (res) => {
+    const load = async (c: string | null) => {
+      const res = await fetch(`/api/public/${token}${c ? `?p=${c}` : ""}`, { cache: "no-store" });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error("load");
+      return (await res.json()) as PublicEvent;
+    };
+    (async () => {
+      try {
+        const fromLink = new URLSearchParams(window.location.search).get("p");
+        const first = await load(fromLink);
         if (cancelled) return;
-        if (res.status === 404) return setLoad({ state: "missing" });
-        if (!res.ok) return setLoad({ state: "error" });
-        const event = (await res.json()) as PublicEvent;
+        if (!first) return setLoad({ state: "missing" });
+        let event = first;
+        let known = event.me ? { id: event.me.id, code: fromLink } : null;
+
+        // Not identified by the link: this phone may remember who this is (any link of this team).
+        if (!known) {
+          const saved = readMemory(event.teamId);
+          if (saved?.code) {
+            const again = await load(saved.code);
+            if (cancelled) return;
+            if (again?.me) { event = again; known = { id: again.me.id, code: saved.code }; }
+            else forgetMemory(event.teamId);
+          } else if (saved && event.roster.some((p) => p.id === saved.id)) {
+            known = { id: saved.id, code: null };
+          }
+        }
+        if (known) { setMe(known.id); setCode(known.code); writeMemory(event.teamId, known); }
         setLoad({ state: "ready", event });
-        try {
-          const saved = localStorage.getItem(storeKey);
-          if (saved && event.roster.some((p) => p.id === saved)) setMe(saved);
-        } catch { /* storage can be blocked; the page still works */ }
-      })
-      .catch(() => { if (!cancelled) setLoad({ state: "error" }); });
+      } catch {
+        if (!cancelled) setLoad({ state: "error" });
+      }
+    })();
     return () => { cancelled = true; };
-  }, [token, storeKey]);
+  }, [token]);
 
   function choose(id: string | null) {
     setMe(id);
+    setCode(null);
     setAnswer(null);
     setError("");
-    try { if (id) localStorage.setItem(storeKey, id); else localStorage.removeItem(storeKey); } catch { /* ignore */ }
+    if (load.state === "ready") { if (id) writeMemory(load.event.teamId, { id, code: null }); else forgetMemory(load.event.teamId); }
   }
 
   async function send(status: AvailabilityStatus) {
@@ -68,7 +102,7 @@ export default function PublicAvailabilityPage() {
       const res = await fetch(`/api/public/${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId: me, status, website: trap, elapsedMs: since(shownAt.current) }),
+        body: JSON.stringify({ playerId: me, status, code, website: trap, elapsedMs: since(shownAt.current) }),
       });
       if (res.ok) setAnswer(status);
       else if (res.status === 409) setError(t("pub.errClosed"));
@@ -98,7 +132,7 @@ export default function PublicAvailabilityPage() {
     vs: t("m.vs"), training: t("tr.single"),
     kinds: { fitness: t("kind.fitness"), technical: t("kind.technical"), tactical: t("kind.tactical"), match_practice: t("kind.match_practice"), other: t("kind.other") },
   });
-  const player = event.roster.find((p) => p.id === me);
+  const player = event.me && event.me.id === me ? event.me : event.roster.find((p) => p.id === me);
   const [hiBefore, hiAfter] = t("pub.hi", { name: "\u0000" }).split("\u0000");
 
   return (
@@ -111,6 +145,8 @@ export default function PublicAvailabilityPage() {
       <div className="mt-6">
         {event.closed ? (
           <p className="surface p-4 text-sm text-pitch-300">{t("pub.closed")}</p>
+        ) : !player && event.strict ? (
+          <p className="surface p-4 text-sm text-pitch-300">{t("pub.personalOnly")}</p>
         ) : !player ? (
           <>
             <p className="text-sm text-pitch-300 mb-3">{t("pub.who")}</p>
@@ -134,7 +170,7 @@ export default function PublicAvailabilityPage() {
           <>
             <p className="text-sm text-pitch-300 mb-3">
               {hiBefore}<strong className="text-white">{player.name}</strong>{hiAfter}{" "}
-              <button className="underline text-pitch-400" onClick={() => choose(null)}>{t("pub.notYou")}</button>
+              {!code && <button className="underline text-pitch-400" onClick={() => choose(null)}>{t("pub.notYou")}</button>}
             </p>
             <div className="grid gap-3">
               {OPTIONS.map(({ status, label: text, icon: Icon, tone }) => (

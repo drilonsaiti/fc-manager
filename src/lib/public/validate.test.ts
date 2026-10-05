@@ -7,7 +7,7 @@ const good = { playerId: player, status: "yes", website: "", elapsedMs: 4200 };
 
 describe("validateSubmission", () => {
   it("accepts a normal answer", () => {
-    expect(validateSubmission(token, good)).toEqual({ kind: "ok", token, playerId: player, status: "yes" });
+    expect(validateSubmission(token, good)).toEqual({ kind: "ok", token, playerId: player, status: "yes", code: null });
   });
   it("normalises the player id to lower case", () => {
     const v = validateSubmission(token, { ...good, playerId: player.toUpperCase() });
@@ -76,5 +76,19 @@ describe("clientIp", () => {
     expect(clientIp(h({ "x-forwarded-for": "1.1.1.1, 2.2.2.2" }))).toBe("1.1.1.1");
     expect(clientIp(h({ "x-real-ip": "3.3.3.3" }))).toBe("3.3.3.3");
     expect(clientIp(h({}))).toBeNull();
+  });
+});
+
+describe("personal code", () => {
+  const code = "0123456789abcdef0123";
+  it("is passed through when well-formed", () => {
+    expect(validateSubmission(token, { ...good, code })).toMatchObject({ kind: "ok", code });
+  });
+  it("rejects a malformed code before touching the database", () => {
+    expect(validateSubmission(token, { ...good, code: "short" })).toEqual({ kind: "invalid", reason: "player" });
+    expect(validateSubmission(token, { ...good, code: 12 })).toEqual({ kind: "invalid", reason: "player" });
+  });
+  it("accepts null (shared link)", () => {
+    expect(validateSubmission(token, { ...good, code: null })).toMatchObject({ kind: "ok", code: null });
   });
 });

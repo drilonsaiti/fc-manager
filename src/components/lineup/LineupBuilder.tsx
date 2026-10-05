@@ -1,8 +1,8 @@
 "use client";
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { AlertTriangle, ArrowDownToLine, Copy, Download, RotateCcw, Save, Share2, UserMinus } from "lucide-react";
+import { AlertTriangle, ArrowDownToLine, Copy, Download, RotateCcw, Save, Share2, Sparkles, UserMinus, Undo2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useLineup } from "@/hooks/data";
+import { useLineup, useSeasonStats } from "@/hooks/data";
 import { getLineup, listLineupSources, saveLineup, type LineupSource } from "@/lib/db/lineup";
 import { friendlyError } from "@/lib/db/util";
 import { PRESET_FORMATIONS, getFormation, parseFormation } from "@/features/lineup/formations";
@@ -10,7 +10,9 @@ import {
   benchPlayer, changeFormation, emptyLineup, fromEntries, keepOnly, movePlayer, placeNearest, placePlayer, playerIds,
   positionOf, removePlayer, resetLineup, resetPositions, startersOf, toEntries, validateLineup, type LineupState,
 } from "@/features/lineup/lineup";
+import { autoFill } from "@/features/lineup/autofill";
 import { imageFileName, lineupImageBlob } from "@/features/lineup/image";
+import { formatNumericDate } from "@/i18n/dates";
 import { shortDate } from "@/lib/utils/datetime";
 import { trDyn, useT } from "@/i18n";
 import { Pitch } from "./Pitch";
@@ -46,6 +48,8 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
   const [sources, setSources] = useState<LineupSource[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [customFormation, setCustomFormation] = useState("");
+  const [auto, setAuto] = useState<{ text: string; before: LineupState | null } | null>(null);
+  const { data: seasonData } = useSeasonStats(team?.id, match.seasonId ?? undefined);
 
   // The saved lineup is the base; `draft` holds unsaved edits.
   const saved = useMemo(() => (lineup ? fromEntries(lineup.formation, lineup.entries) : emptyLineup()), [lineup]);
@@ -64,7 +68,27 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
   const pool = players.filter((p) => p.active && !inLineup.has(p.id))
     .sort((a, b) => RANK[availability.get(a.id) ?? "none"] - RANK[availability.get(b.id) ?? "none"] || a.name.localeCompare(b.name));
 
-  function edit(fn: (s: LineupState) => LineupState) { setDraft(fn(state)); setMessage(""); }
+  function edit(fn: (s: LineupState) => LineupState) { setDraft(fn(state)); setMessage(""); setAuto(null); }
+
+  /** Fill the empty spots from the players who can play, by position, form and answer. */
+  function fillAuto() {
+    const stats = seasonData?.stats ?? [];
+    const r = autoFill(state, {
+      players, availability, stats, matchesPlayed: Math.max(0, ...stats.map((s) => s.appearances)),
+    });
+    const names = (ids: string[]) => ids.slice(0, 3).map(nameOf).join(", ") + (ids.length > 3 ? "…" : "");
+    const parts: string[] = [];
+    if (r.filled === 0 && r.missing === 0) parts.push(t("l.autoFull"));
+    else if (r.filled === 0) parts.push(t("l.autoNone"));
+    else parts.push(t("l.autoDone", { n: r.filled }));
+    if (r.outOfPosition.length) parts.push(t("l.autoOut", { names: r.outOfPosition.slice(0, 3).map((o) => `${nameOf(o.playerId)} (${o.slotLabel})`).join(", ") }));
+    if (r.unsure.length) parts.push(t("l.autoUnsure", { names: names(r.unsure) }));
+    if (r.missing > 0 && r.filled > 0) parts.push(t("l.autoMissing", { n: r.missing }));
+    setAuto({ text: parts.join(" "), before: draft });
+    setDraft(r.state);
+    setSel(null);
+    setMessage("");
+  }
 
   // ── drag & drop ────────────────────────────────────────────────
   const pitchRef = useRef<HTMLDivElement>(null);
@@ -179,6 +203,7 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
             <input className="input-field !w-24 !py-2" placeholder="4-1-4-1" aria-label={t("l.custom")} value={customFormation}
               onChange={(e) => setCustomFormation(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && parseFormation(customFormation) && getFormation(customFormation)) { edit((s) => changeFormation(s, customFormation)); setCustomFormation(""); } }} />
+            <button className="btn-primary flex items-center gap-1.5 !py-2" onClick={fillAuto}><Sparkles className="w-4 h-4" />{t("l.auto")}</button>
             <button className="btn-ghost flex items-center gap-1.5" onClick={openSources}><Copy className="w-4 h-4" />{t("l.copyPrev")}</button>
             <button className="btn-ghost" onClick={() => edit(resetPositions)}>{t("l.resetSpots")}</button>
             <button className="btn-ghost flex items-center gap-1.5" onClick={() => { edit(resetLineup); setSel(null); }}><RotateCcw className="w-4 h-4" />{t("l.clear")}</button>
@@ -190,6 +215,19 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
         </span>
       </div>
 
+      {auto && (
+        <div role="status" className="surface-2 px-3 py-2.5 text-xs text-pitch-200 flex items-start gap-3">
+          <Sparkles className="w-4 h-4 mt-0.5 shrink-0 text-amber-300" />
+          <span className="flex-1">{auto.text}</span>
+          <button className="flex items-center gap-1 underline text-pitch-300 shrink-0" onClick={() => { setDraft(auto.before); setAuto(null); }}>
+            <Undo2 className="w-3.5 h-3.5" />{t("l.undo")}
+          </button>
+        </div>
+      )}
+
+      {/* Phone: pitch on top, tray (bench + squad) pinned below it. Desktop: bench and squad on the left, pitch on the right. */}
+      <div className="md:grid md:grid-cols-[17rem_minmax(0,1fr)] md:gap-6 md:items-start space-y-4 md:space-y-0">
+      <div className="md:col-start-2 md:row-start-1 space-y-4 min-w-0">
       <div data-drop="pitch" className={cn("rounded-xl", drag && "ring-2 ring-white/20")}>
         <Pitch ref={pitchRef}>
           {getFormation(state.formation)?.slots.map((slot) => {
@@ -248,14 +286,17 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
         </ul>
       )}
 
-      {/* Tray: stays on screen under the pitch on phones so players can be dragged without scrolling */}
-      <div className="sticky bottom-[calc(3.9rem+env(safe-area-inset-bottom))] md:bottom-0 z-30 -mx-4 px-4 pt-2 pb-2 bg-pitch-950/95 backdrop-blur border-t border-white/10 md:border-0 md:bg-transparent md:backdrop-blur-none space-y-1">
+      </div>
+
+      {/* Tray: pinned under the pitch on phones so players can be dragged without scrolling; a left column on desktop */}
+      <div className="sticky bottom-[calc(3.9rem+env(safe-area-inset-bottom))] z-30 -mx-4 px-4 pt-2 pb-2 bg-pitch-950/95 backdrop-blur border-t border-white/10 space-y-1
+        md:col-start-1 md:row-start-1 md:top-4 md:bottom-auto md:mx-0 md:px-0 md:pt-0 md:pb-0 md:border-0 md:bg-transparent md:backdrop-blur-none md:max-h-[calc(100dvh-2rem)] md:overflow-y-auto md:space-y-3">
         {editable && (
           <div className="flex items-center gap-2 min-h-11">
-            <button className="btn-primary flex items-center gap-2 py-2.5 px-4 disabled:opacity-50" disabled={!dirty || saving} onClick={save}>
+            <button className="btn-primary flex items-center gap-2 py-2.5 px-4 whitespace-nowrap disabled:opacity-50" disabled={!dirty || saving} onClick={save}>
               <Save className="w-4 h-4" />{saving ? t("c.saving") : dirty ? t("l.save") : t("l.saved")}
             </button>
-            {dirty && <button className="btn-ghost" onClick={() => { setDraft(null); setSel(null); }}>{t("l.discard")}</button>}
+            {dirty && <button className="btn-ghost whitespace-nowrap" onClick={() => { setDraft(null); setSel(null); }}>{t("l.discard")}</button>}
             <span role="status" className="text-xs text-green-400 truncate">{message}</span>
           </div>
         )}
@@ -293,6 +334,7 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
           </>
         )}
       </div>
+      </div>
       {sources && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70" onClick={() => setSources(null)}>
           <div className="bg-pitch-900 border border-pitch-700 rounded-t-2xl sm:rounded-2xl w-full max-w-sm p-4 space-y-2" onClick={(e) => e.stopPropagation()}>
@@ -300,7 +342,7 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
             {sources.length === 0 && <p className="text-sm text-pitch-400">{t("l.noSaved")}</p>}
             {sources.map((s) => (
               <button key={s.matchId} className="w-full surface-2 p-3 text-left text-sm" onClick={() => duplicate(s)}>
-                {t("m.vs")} {s.opponent} <span className="text-pitch-500">· {s.kickoff.toLocaleDateString()} · {s.formation}</span>
+                {t("m.vs")} {s.opponent} <span className="text-pitch-500">· {formatNumericDate(s.kickoff)} · {s.formation}</span>
               </button>
             ))}
             <button className="btn-ghost w-full" onClick={() => setSources(null)}>{t("c.cancel")}</button>

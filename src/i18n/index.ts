@@ -60,6 +60,11 @@ export function tr(key: MessageKey, params?: Params): string {
   return fill(DICT[getLang()][key] ?? en[key] ?? key, params);
 }
 
+/** Translate into a specific language (e.g. a post written in Albanian while the app is in English). */
+export function trIn(lang: Lang, key: MessageKey, params?: Params): string {
+  return fill(DICT[lang][key] ?? en[key] ?? key, params);
+}
+
 /** Like tr() for keys built at runtime (e.g. "pos.Striker"); falls back to the given text. */
 export function trDyn(key: string, fallback: string): string {
   return DICT[getLang()][key] ?? (en as Record<string, string>)[key] ?? fallback;
@@ -69,6 +74,8 @@ export function fill(text: string, params?: Params): string {
   if (!params) return text;
   return text.replace(/\{(\w+)\}/g, (_, k: string) => (k in params ? String(params[k]) : `{${k}}`));
 }
+
+export const localeOf = (lang: Lang): string => LANGS.find((l) => l.id === lang)!.locale;
 
 export function useLang(): Lang {
   return useSyncExternalStore(subscribe, getLang, () => "en" as Lang);

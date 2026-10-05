@@ -56,7 +56,12 @@ export default function PlayersPage() {
             <span className="w-7 text-center text-pitch-500 tabular-nums text-sm">{p.number ?? "–"}</span>
             <div className="flex-1 min-w-0">
               <p className="truncate text-sm font-medium">{p.name}</p>
-              {p.positions[0] && <p className="text-xs text-pitch-500">{trDyn(`pos.${p.positions[0]}`, p.positions[0])}</p>}
+              {p.positions[0] && (
+                <p className="text-xs text-pitch-500 truncate">
+                  {trDyn(`pos.${p.positions[0]}`, p.positions[0])}
+                  {p.positions.length > 1 && <span className="text-pitch-600"> · {p.positions.slice(1).map((x) => trDyn(`pos.${x}`, x)).join(", ")}</span>}
+                </p>
+              )}
             </div>
             {canManage && (
               <button aria-label={t("p.editAria", { name: p.name })} className="p-2 text-pitch-400 hover:text-white" onClick={() => setEditing(p)}><Pencil className="w-4 h-4" /></button>

@@ -8,6 +8,7 @@ import { PageLoader } from "./LoadingSpinner";
 import { cn } from "@/lib/utils/cn";
 import { useT, type MessageKey } from "@/i18n";
 import { LangSwitch } from "./LangSwitch";
+import { TeamSwitcher } from "./TeamSwitcher";
 
 const NAV: { href: string; label: MessageKey; icon: typeof Home }[] = [
   { href: "/dashboard", label: "nav.home", icon: Home },
@@ -19,7 +20,7 @@ const NAV: { href: string; label: MessageKey; icon: typeof Home }[] = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { t } = useT();
-  const { loading, userId, member, team, season } = useAuth();
+  const { loading, userId, member, season } = useAuth();
   const router = useRouter();
   const path = usePathname();
 
@@ -36,7 +37,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Desktop sidebar */}
       <aside className="hidden md:flex md:w-56 shrink-0 flex-col border-r border-white/10 p-4 gap-1 sticky top-0 h-dvh">
         <div className="mb-6 px-2">
-          <p className="font-display text-2xl tracking-wide">{team?.name ?? "FC MANAGER"}</p>
+          <TeamSwitcher />
           {season && <p className="text-xs text-pitch-500">{season.name}</p>}
         </div>
         {NAV.map(({ href, label, icon: Icon }) => (
@@ -57,19 +58,18 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex-1 min-w-0 flex flex-col">
         {/* Mobile header */}
         <header className="md:hidden flex items-center justify-between px-4 min-h-12 pt-[env(safe-area-inset-top)] border-b border-white/10 sticky top-0 bg-pitch-950/95 backdrop-blur z-30">
-          <div className="min-w-0">
-            <span className="font-display text-xl tracking-wide truncate">{team?.name ?? "FC MANAGER"}</span>
-            {season && <span className="text-xs text-pitch-500 ml-2">{season.name}</span>}
+          <div className="min-w-0 flex items-center gap-2">
+            <TeamSwitcher />
+            {season && <span className="text-xs text-pitch-500 shrink-0">{season.name}</span>}
           </div>
           <div className="flex items-center gap-1">
-            <LangSwitch />
             <Link href="/settings" aria-label={t("nav.settings")} className="p-2 -mr-2 text-pitch-400 hover:text-white">
               <Settings className="w-5 h-5" />
             </Link>
           </div>
         </header>
 
-        <main className="flex-1 w-full max-w-3xl mx-auto px-4 py-5 pb-28 md:pb-10">{children}</main>
+        <main className="flex-1 w-full max-w-4xl mx-auto px-4 py-5 pb-28 md:pb-10">{children}</main>
 
         {/* Mobile bottom navigation */}
         <nav aria-label={t("nav.main")} className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-pitch-950/95 backdrop-blur border-t border-white/10 pb-[env(safe-area-inset-bottom)]">

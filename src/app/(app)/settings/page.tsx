@@ -4,7 +4,7 @@ import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import { Copy, LogOut, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { createInvite, deleteInvite, listInvites, listMembers, removeMember, renameTeam, startSeason, type Invite } from "@/lib/db/teams";
+import { createInvite, deleteInvite, listInvites, listMembers, removeMember, renameTeam, setStrictLinks, startSeason, type Invite } from "@/lib/db/teams";
 import { friendlyError } from "@/lib/db/util";
 import { copyText } from "@/lib/utils/clipboard";
 import { Badge } from "@/components/ui/Badge";
@@ -66,6 +66,20 @@ export default function SettingsPage() {
             <input className="input-field" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
             <button className="btn-primary">{t("c.save")}</button>
           </form>
+        </section>
+      )}
+
+      {isOwner && (
+        <section className="space-y-2">
+          <h2 className="text-xs uppercase tracking-widest text-pitch-500">{t("s.links")}</h2>
+          <label className="surface p-4 flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" className="mt-1 w-5 h-5 accent-white shrink-0" checked={team.strictLinks}
+              onChange={(e) => run(async () => { await setStrictLinks(team.id, e.target.checked); await reload(); }, t("s.saved"))} />
+            <span>
+              <span className="block text-sm font-medium">{t("s.strict")}</span>
+              <span className="block text-xs text-pitch-400 mt-0.5">{t("s.strictHelp")}</span>
+            </span>
+          </label>
         </section>
       )}
 

@@ -14,27 +14,35 @@ export async function fetchMembership(userId: string): Promise<Member | null> {
   return rows[0] ? toMember(rows[0]) : null;
 }
 
+export interface Membership { member: Member; team: Team }
+export interface Club { memberships: Membership[]; seasons: Season[] }
+
+type TeamRow = { id: string; name: string; strict_links: boolean };
+const toTeam = (r: TeamRow | undefined, fallbackId: string): Team =>
+  ({ id: r?.id ?? fallbackId, name: r?.name ?? "", strictLinks: r?.strict_links ?? false });
+
 /**
- * Membership, club and seasons in one round trip (two requests in parallel).
- * Row Level Security already limits seasons to clubs the user belongs to.
+ * Every team the user belongs to (U19, U17 ...) plus their seasons, in one round trip
+ * (two requests in parallel). Row Level Security already limits both to the user's teams.
  */
-export async function fetchClub(userId: string): Promise<{ member: Member; team: Team; seasons: Season[] } | null> {
+export async function fetchClub(userId: string): Promise<Club | null> {
   const [mem, sea] = await Promise.all([
-    supabase().from("team_members").select("team_id, user_id, role, display_name, teams(id, name)")
-      .eq("user_id", userId).order("created_at").limit(1),
+    supabase().from("team_members").select("team_id, user_id, role, display_name, teams(id, name, strict_links)")
+      .eq("user_id", userId).order("created_at"),
     supabase().from("seasons").select("id, team_id, name, is_active").order("created_at", { ascending: false }),
   ]);
-  const rows = unwrap(mem) as unknown as (MemberRow & { teams: Team | Team[] | null })[];
-  const row = rows[0];
-  if (!row) return null;
-  const embedded = Array.isArray(row.teams) ? row.teams[0] : row.teams;
-  const seasons = (unwrap(sea) as SeasonRow[]).filter((x) => x.team_id === row.team_id).map(toSeason);
-  return { member: toMember(row), team: embedded ?? { id: row.team_id, name: "" }, seasons };
+  const rows = unwrap(mem) as unknown as (MemberRow & { teams: TeamRow | TeamRow[] | null })[];
+  if (rows.length === 0) return null;
+  const memberships = rows.map((row) => {
+    const embedded = Array.isArray(row.teams) ? row.teams[0] : row.teams;
+    return { member: toMember(row), team: toTeam(embedded ?? undefined, row.team_id) };
+  });
+  return { memberships, seasons: (unwrap(sea) as SeasonRow[]).map(toSeason) };
 }
 
 export async function fetchTeam(teamId: string): Promise<Team | null> {
-  const rows = unwrap(await supabase().from("teams").select("id, name").eq("id", teamId).limit(1)) as Team[];
-  return rows[0] ?? null;
+  const rows = unwrap(await supabase().from("teams").select("id, name, strict_links").eq("id", teamId).limit(1)) as TeamRow[];
+  return rows[0] ? toTeam(rows[0], teamId) : null;
 }
 
 export async function fetchSeasons(teamId: string): Promise<Season[]> {
@@ -58,6 +66,10 @@ export async function startSeason(teamId: string, name: string): Promise<string>
 
 export async function renameTeam(teamId: string, name: string): Promise<void> {
   check(await supabase().from("teams").update({ name: name.trim() }).eq("id", teamId));
+}
+
+export async function setStrictLinks(teamId: string, strict: boolean): Promise<void> {
+  check(await supabase().from("teams").update({ strict_links: strict }).eq("id", teamId));
 }
 
 export async function listMembers(teamId: string): Promise<Member[]> {

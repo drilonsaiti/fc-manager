@@ -1,4 +1,5 @@
 import { getLocale } from "@/i18n";
+import { formatDay, formatTime } from "@/i18n/dates";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -21,6 +22,5 @@ export function defaultKickoff(): Date {
 }
 
 export function shortDate(d: Date, locale = getLocale()): string {
-  return d.toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" }) +
-    " · " + d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", hour12: false });
+  return `${formatDay(d, locale)} · ${formatTime(d)}`;
 }

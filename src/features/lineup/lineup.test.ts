@@ -239,3 +239,115 @@ describe("placeNearest", () => {
     expect(Object.keys(next.slots)).toHaveLength(11);
   });
 });
+
+import { assign, autoFill, formBonus, positionFit } from "./autofill";
+import type { AvailabilityState, SeasonPlayerStat } from "@/types";
+
+describe("positionFit", () => {
+  const slot = (role: "GK" | "DEF" | "MID" | "FWD", label: string) => ({ role, label });
+  it("rewards the natural position and respects side", () => {
+    expect(positionFit(["Left Back"], slot("DEF", "LB"))).toBe(100);
+    expect(positionFit(["Left Back"], slot("DEF", "RB"))).toBe(62);
+    expect(positionFit(["Striker"], slot("FWD", "ST"))).toBe(100);
+  });
+  it("counts extra positions a little less than the main one", () => {
+    expect(positionFit(["Striker", "Right Winger"], slot("FWD", "RW"))).toBeCloseTo(92);
+    expect(positionFit(["Centre Back", "Left Back"], slot("DEF", "LB"))).toBeGreaterThan(positionFit(["Centre Back"], slot("DEF", "LB")));
+  });
+  it("keeps keepers in goal and outfielders out of it", () => {
+    expect(positionFit(["Goalkeeper"], slot("GK", "GK"))).toBe(100);
+    expect(positionFit(["Striker"], slot("GK", "GK"))).toBe(0);
+    expect(positionFit(["Goalkeeper"], slot("FWD", "ST"))).toBe(0);
+  });
+  it("is neutral for a player with no position", () => {
+    expect(positionFit([], slot("MID", "CM"))).toBe(35);
+  });
+});
+
+describe("assign (Hungarian)", () => {
+  it("finds the cheapest assignment, not just the greedy one", () => {
+    // greedy would give row 0 → col 0 (cost 1) then row 1 → col 1 (cost 100); best is 2 + 2.
+    expect(assign([[1, 2], [2, 100]])).toEqual([1, 0]);
+  });
+  it("handles more columns than rows", () => {
+    expect(assign([[5, 1, 9], [4, 8, 2]])).toEqual([1, 2]);
+  });
+});
+
+describe("autoFill", () => {
+  const P = (id: string, positions: string[], active = true) => ({ id, name: id, positions, active });
+  const squad = [
+    P("gk", ["Goalkeeper"]), P("lb", ["Left Back"]), P("cb1", ["Centre Back"]), P("cb2", ["Centre Back"]), P("rb", ["Right Back"]),
+    P("lm", ["Left Winger"]), P("cm1", ["Central Midfielder"]), P("cm2", ["Central Midfielder"]), P("rm", ["Right Winger"]),
+    P("st1", ["Striker"]), P("st2", ["Striker", "Second Striker"]), P("sub1", ["Striker"]), P("sub2", ["Centre Back"]),
+  ];
+  const all = (a: AvailabilityState = "yes") => new Map(squad.map((p) => [p.id, a]));
+  const base = { players: squad, stats: [] as SeasonPlayerStat[], matchesPlayed: 0 };
+
+  it("fills a 4-4-2 with everyone in their natural spot", () => {
+    const r = autoFill(emptyLineup("4-4-2"), { ...base, availability: all() });
+    expect(r.filled).toBe(11);
+    expect(r.missing).toBe(0);
+    expect(r.outOfPosition).toEqual([]);
+    expect(r.state.slots["GK"]).toBe("gk");
+    expect(Object.values(r.state.slots)).toHaveLength(11);
+    expect(r.state.bench.sort()).toEqual(["sub1", "sub2"]);
+  });
+
+  it("fills the bench with confirmed players first, then maybe, then unanswered", () => {
+    const a = all();
+    a.set("sub1", "none"); a.set("sub2", "maybe"); a.set("st2", "yes");
+    const r = autoFill(emptyLineup("4-4-2"), { ...base, availability: a, benchSize: 1 });
+    expect(r.state.bench).toHaveLength(1);
+    // both st2 and sub2/sub1 compete for the last spots; whoever is left over and confirmed must rank above maybe/none
+    const left = squad.map((p) => p.id).filter((id) => !Object.values(r.state.slots).includes(id));
+    const order = ["yes", "maybe", "none"];
+    const best = left.sort((x, y) => order.indexOf(a.get(x)!) - order.indexOf(a.get(y)!))[0];
+    expect(r.state.bench[0]).toBe(best);
+  });
+
+  it("never picks anyone who said no, and prefers yes over maybe", () => {
+    const a = all();
+    a.set("gk", "no"); a.set("st1", "maybe");
+    const r = autoFill(emptyLineup("4-4-2"), { ...base, availability: a });
+    expect(Object.values(r.state.slots)).not.toContain("gk");
+    // Nobody else is a keeper: someone still has to go in goal, and the result says so.
+    expect(r.state.slots["GK"]).toBeDefined();
+    expect(r.outOfPosition.map((o) => o.slotLabel)).toContain("GK");
+  });
+
+  it("leaves spots empty when too few players are available", () => {
+    const a = new Map(squad.map((p, i) => [p.id, i < 5 ? "yes" : "no"] as [string, AvailabilityState]));
+    const r = autoFill(emptyLineup("4-4-2"), { ...base, availability: a });
+    expect(r.filled).toBe(5);
+    expect(r.missing).toBe(6);
+  });
+
+  it("keeps players the coach already placed", () => {
+    const start = placePlayer(emptyLineup("4-4-2"), "L2_0", "st2");
+    const r = autoFill(start, { ...base, availability: all() });
+    expect(r.state.slots["L2_0"]).toBe("st2");
+    expect(r.filled).toBe(10);
+    expect(new Set(Object.values(r.state.slots)).size).toBe(11);
+  });
+
+  it("uses goals and assists to choose between two equal strikers", () => {
+    const stats: SeasonPlayerStat[] = [
+      { playerId: "st1", appearances: 10, starts: 10, subAppearances: 0, minutes: 900, goals: 2, assists: 0, yellow: 0, red: 0, ownGoals: 0, wins: 0, draws: 0, losses: 0 },
+      { playerId: "sub1", appearances: 10, starts: 10, subAppearances: 0, minutes: 900, goals: 14, assists: 3, yellow: 0, red: 0, ownGoals: 0, wins: 0, draws: 0, losses: 0 },
+    ];
+    const r = autoFill(emptyLineup("4-4-2"), { players: squad.filter((p) => p.id !== "st2"), availability: all(), stats, matchesPlayed: 10 });
+    const strikers = ["L2_0", "L2_1"].map((k) => r.state.slots[k]);
+    expect(strikers).toContain("sub1");
+    expect(formBonus(stats[1], "FWD")).toBeGreaterThan(formBonus(stats[0], "FWD"));
+  });
+
+  it("reports players put out of position", () => {
+    // Both striker spots already hold the coach's picks, so the only free player must fill a defensive spot.
+    let start = placePlayer(emptyLineup("4-4-2"), "L2_0", "x1");
+    start = placePlayer(start, "L2_1", "x2");
+    const r = autoFill(start, { players: [P("a", ["Striker"])], availability: new Map([["a", "yes"]]), stats: [], matchesPlayed: 0 });
+    expect(r.filled).toBe(1);
+    expect(r.outOfPosition.map((o) => o.playerId)).toEqual(["a"]);
+  });
+});
