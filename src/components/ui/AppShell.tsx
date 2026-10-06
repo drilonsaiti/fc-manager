@@ -58,9 +58,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex-1 min-w-0 flex flex-col">
         {/* Mobile header */}
         <header className="md:hidden flex items-center justify-between px-4 min-h-12 pt-[env(safe-area-inset-top)] border-b border-white/10 sticky top-0 bg-pitch-950/95 backdrop-blur z-30">
-          <div className="min-w-0 flex items-center gap-2">
+          <div className="min-w-0 flex-1 py-1">
             <TeamSwitcher />
-            {season && <span className="text-xs text-pitch-500 shrink-0">{season.name}</span>}
+            {season && <p className="text-[11px] leading-none text-pitch-500 -mt-0.5">{season.name}</p>}
           </div>
           <div className="flex items-center gap-1">
             <Link href="/settings" aria-label={t("nav.settings")} className="p-2 -mr-2 text-pitch-400 hover:text-white">

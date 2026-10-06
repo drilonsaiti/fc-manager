@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   if (verdict.kind === "invalid") return json({ error: "bad_request" }, 400);
   if (verdict.kind === "bot") return json({ ok: true }); // look successful, write nothing
 
-  const salt = process.env.LINK_HASH_SALT;
+  const salt = process.env.LINK_HASH_SALT ?? process.env.PUBLIC_LINK_SALT; // old name still works
   if (!salt) return json({ error: "server" }, 500);
 
   try {

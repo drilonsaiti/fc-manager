@@ -214,4 +214,5 @@ export const sq: Record<MessageKey, string> = {
   "px.def": "MBR",
   "px.mid": "MES",
   "px.fwd": "SUL",
+  "l.trayToggle": "Shfaq ose fshih lojtarët",
 };

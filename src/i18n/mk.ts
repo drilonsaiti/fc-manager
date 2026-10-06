@@ -214,4 +214,5 @@ export const mk: Record<MessageKey, string> = {
   "px.def": "ОДБ",
   "px.mid": "СРЕ",
   "px.fwd": "НАП",
+  "l.trayToggle": "Прикажи или скриј ги играчите",
 };

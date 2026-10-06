@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { AlertTriangle, ArrowDownToLine, Copy, Download, RotateCcw, Save, Share2, Sparkles, UserMinus, Undo2 } from "lucide-react";
+import { AlertTriangle, ArrowDownToLine, Copy, Download, RotateCcw, Save, Share2, Sparkles, UserMinus, Undo2, ChevronDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLineup, useSeasonStats } from "@/hooks/data";
 import { getLineup, listLineupSources, saveLineup, type LineupSource } from "@/lib/db/lineup";
@@ -48,6 +48,7 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
   const [sources, setSources] = useState<LineupSource[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [customFormation, setCustomFormation] = useState("");
+  const [trayOpen, setTrayOpen] = useState(true);
   const [auto, setAuto] = useState<{ text: string; before: LineupState | null } | null>(null);
   const { data: seasonData } = useSeasonStats(team?.id, match.seasonId ?? undefined);
 
@@ -298,12 +299,18 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
             </button>
             {dirty && <button className="btn-ghost whitespace-nowrap" onClick={() => { setDraft(null); setSel(null); }}>{t("l.discard")}</button>}
             <span role="status" className="text-xs text-green-400 truncate">{message}</span>
+            <button type="button" aria-expanded={trayOpen} aria-label={t("l.trayToggle")} onClick={() => setTrayOpen((o) => !o)}
+              className="md:hidden ml-auto shrink-0 flex items-center gap-1.5 px-3 h-10 rounded-lg border border-white/10 text-xs text-pitch-300">
+              {!trayOpen && <span>{t("l.bench", { n: state.bench.length })} · {t("l.squad", { n: pool.length })}</span>}
+              <ChevronDown className={cn("w-4 h-4 transition-transform", trayOpen && "rotate-180")} />
+            </button>
           </div>
         )}
+      <div className={cn(!trayOpen && "max-md:hidden", "space-y-1")}>
       {/* Bench (drop zone) */}
       <div data-drop="bench" className={cn("rounded-xl px-2 py-1.5 transition-colors", drag?.over?.kind === "bench" && "bg-white/10 ring-2 ring-white/40")}>
         <h3 className="text-xs uppercase tracking-widest text-pitch-500 mb-1">{t("l.bench", { n: state.bench.length })}</h3>
-        <div className="flex gap-2 min-h-11 overflow-x-auto md:flex-wrap md:overflow-visible pb-1 [scrollbar-width:none]">
+        <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 min-h-11 max-h-24 overflow-y-auto md:max-h-none md:overflow-visible pb-1">
           {state.bench.length === 0 && <span className="text-xs text-pitch-500 self-center">{editable ? t("l.benchEmpty") : "—"}</span>}
           {state.bench.map((id) => (
             <Chip key={id} player={byId.get(id)} a={availability.get(id) ?? "none"} selected={sel?.kind === "player" && sel.id === id}
@@ -316,7 +323,7 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
         {/* Remaining squad (drop zone: dropping here takes a player out of the lineup) */}
       <div data-drop="pool" className={cn("rounded-xl px-2 py-1.5 transition-colors", drag?.over?.kind === "pool" && "bg-white/10 ring-2 ring-white/40")}>
         <h3 className="text-xs uppercase tracking-widest text-pitch-500 mb-1">{t("l.squad", { n: pool.length })}</h3>
-        <div className="flex gap-2 min-h-11 overflow-x-auto md:flex-wrap md:overflow-visible pb-1 [scrollbar-width:none]">
+        <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 min-h-11 max-h-32 overflow-y-auto overscroll-contain md:max-h-none md:overflow-visible pb-1">
           {pool.map((p) => (
             <Chip key={p.id} player={p} a={availability.get(p.id) ?? "none"} selected={sel?.kind === "player" && sel.id === p.id}
               ghosted={dragging === p.id} onClick={() => tapPlayer(p.id)}
@@ -325,6 +332,7 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
           ))}
           {pool.length === 0 && <span className="text-xs text-pitch-500 self-center">{t("l.everyoneIn")}</span>}
         </div>
+      </div>
       </div>
 
         {!editable && (
@@ -370,14 +378,14 @@ function Chip({ player, a, selected, ghosted, onClick, onPress, onBench, benchLa
 }) {
   if (!player) return null;
   return (
-    <span className={cn("inline-flex shrink-0 items-stretch rounded-lg border text-sm overflow-hidden select-none transition-opacity",
+    <span className={cn("inline-flex min-w-0 max-md:w-full md:shrink-0 items-stretch rounded-lg border text-sm overflow-hidden select-none transition-opacity",
       selected ? "border-amber-400 bg-amber-400/10" : "border-white/10 bg-white/5", ghosted && "opacity-30")}>
       <button type="button" onClick={onClick} onPointerDown={onPress} onContextMenu={(e) => e.preventDefault()} aria-pressed={selected}
         style={{ WebkitTouchCallout: "none" }}
-        className={cn("flex items-center gap-2 pl-2.5 pr-2.5 py-2.5", onPress && "cursor-grab")}>
+        className={cn("flex min-w-0 flex-1 items-center gap-2 pl-2.5 pr-2.5 py-2.5 text-left", onPress && "cursor-grab")}>
         <span className={cn("w-2 h-2 rounded-full", DOT[a])} aria-hidden />
         {player.number != null && <span className="text-pitch-500 tabular-nums text-xs">{player.number}</span>}
-        <span>{player.name}</span>
+        <span className="truncate">{player.name}</span>
       </button>
       {onBench && <button type="button" aria-label={benchLabel} onClick={onBench} className="px-2.5 border-l border-white/10 text-pitch-500 hover:text-white"><ArrowDownToLine className="w-3.5 h-3.5" /></button>}
     </span>

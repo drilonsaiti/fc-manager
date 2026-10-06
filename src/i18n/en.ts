@@ -228,6 +228,7 @@ export const en = {
   "px.def": "DEF",
   "px.mid": "MID",
   "px.fwd": "FWD",
+  "l.trayToggle": "Show or hide players",
 } as const;
 
 export type MessageKey = keyof typeof en;
