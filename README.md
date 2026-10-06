@@ -9,7 +9,7 @@ Built for "I have 5 minutes before kick-off". Next.js 16 · Supabase (Postgres) 
 2. **Run the schema:** Supabase → SQL Editor → paste `supabase/migrations/0001_init.sql` → Run, then `0002_personal_links_multi_team.sql` → Run. *(Already running 0001? Only run 0002.)*
 3. **Auth settings:** Authentication → Providers → Email → turn **off "Confirm email"** (coaches sign up with email + password; players never sign up). Optionally turn on CAPTCHA under Authentication → Attack Protection.
 4. **Env vars:** copy `.env.local.example` to `.env.local` and fill it in
-   (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and the **server-only** `SUPABASE_SERVICE_ROLE_KEY`, plus any long random `PUBLIC_LINK_SALT`).
+   (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and the **server-only** `SUPABASE_SERVICE_ROLE_KEY`, plus any long random `LINK_HASH_SALT`).
    Set the same variables on your host (e.g. Vercel). Never expose the service-role key to the browser.
 5. `npm install && npm run dev`, open the app, **New club** → create your account and club.
 6. *(Free plan)* Supabase pauses a project after a week of no use. Set the GitHub repository variable `APP_URL`; `.github/workflows/keepalive.yml` then pings `/api/keepalive` twice a week.
