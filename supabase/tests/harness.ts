@@ -27,7 +27,7 @@ export async function createDb() {
     grant usage on schema auth to anon, authenticated, service_role;
     grant usage on schema public to anon, authenticated, service_role;
   `);
-  for (const f of ["0001_init.sql", "0002_personal_links_multi_team.sql"]) await db.exec(readFileSync(`supabase/migrations/${f}`, "utf8"));
+  for (const f of ["0001_init.sql", "0002_personal_links_multi_team.sql", "0003_owner_invites.sql"]) await db.exec(readFileSync(`supabase/migrations/${f}`, "utf8"));
   return db;
 }
 

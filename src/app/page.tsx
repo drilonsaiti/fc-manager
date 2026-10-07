@@ -1,15 +1,11 @@
-"use client";
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/contexts/AuthContext";
-import { PageLoader } from "@/components/ui/LoadingSpinner";
+import type { Metadata } from "next";
+import { Landing } from "@/components/landing/Landing";
+
+export const metadata: Metadata = {
+  title: { absolute: "FC Manager — team manager for amateur football" },
+  description: "Availability by link, a drag-and-drop lineup, matchday stats and match reports. Built for amateur football teams. English, Shqip, Македонски.",
+};
 
 export default function Home() {
-  const { userId, member, loading } = useAuth();
-  const router = useRouter();
-  useEffect(() => {
-    if (loading) return;
-    router.replace(userId && member ? "/dashboard" : "/login");
-  }, [userId, member, loading, router]);
-  return <PageLoader />;
+  return <Landing />;
 }

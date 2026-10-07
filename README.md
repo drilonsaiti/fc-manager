@@ -43,3 +43,8 @@ Every table carries `team_id`; Row Level Security restricts reads to club member
 
 ## Not included on purpose
 Transfers, finances, player attributes/ratings, match simulation.
+
+## Landing page & owner invites
+
+- `/` is a public landing page (English / Shqip / Македонски, follows the language switcher). Code in `src/components/landing/`, copy under the `lp.*` keys in `src/i18n/*`. Signed-in users see "Open the app" instead of sign-up buttons.
+- Run **`supabase/migrations/0003_owner_invites.sql`** (after 0001 and 0002). Owners can now pick **Owner / Coach / Staff** when creating an invite code (Settings → Members) and change a member's role later.

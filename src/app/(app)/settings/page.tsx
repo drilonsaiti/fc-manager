@@ -4,12 +4,13 @@ import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import { Copy, LogOut, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { createInvite, deleteInvite, listInvites, listMembers, removeMember, renameTeam, setStrictLinks, startSeason, type Invite } from "@/lib/db/teams";
+import { createInvite, deleteInvite, listInvites, listMembers, removeMember, renameTeam, setMemberRole, setStrictLinks, startSeason, type Invite } from "@/lib/db/teams";
 import { friendlyError } from "@/lib/db/util";
 import { copyText } from "@/lib/utils/clipboard";
 import { Badge } from "@/components/ui/Badge";
 import { LangSwitch } from "@/components/ui/LangSwitch";
 import { useT } from "@/i18n";
+import type { Role } from "@/types";
 
 export default function SettingsPage() {
   const { t } = useT();
@@ -18,6 +19,7 @@ export default function SettingsPage() {
   const [name, setName] = useState(team?.name ?? "");
   const [seasonName, setSeasonName] = useState("");
   const [note, setNote] = useState("");
+  const [inviteRole, setInviteRole] = useState<Role>("coach");
 
   const membersQ = useSWR(team ? ["members", team.id] : null, () => listMembers(team!.id));
   const invitesQ = useSWR(team && isOwner ? ["invites", team.id] : null, () => listInvites(team!.id));
@@ -106,7 +108,14 @@ export default function SettingsPage() {
         <ul className="surface divide-y divide-white/5">
           {members.map((m) => (
             <li key={m.userId} className="flex items-center gap-3 px-4 py-3 text-sm">
-              <span className="flex-1 truncate">{m.displayName}</span><Badge variant={m.role}>{t(`role.${m.role}`)}</Badge>
+              <span className="flex-1 truncate">{m.displayName}</span>
+              {isOwner && m.userId !== userId ? (
+                <select aria-label={t("s.changeRole", { name: m.displayName })} value={m.role}
+                  onChange={(e) => run(async () => { await setMemberRole(team.id, m.userId, e.target.value as Role); await refresh(); }, t("s.saved"))}
+                  className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-pitch-200">
+                  {(["owner", "coach", "staff"] as const).map((r) => <option key={r} value={r} className="bg-pitch-900">{t(`role.${r}`)}</option>)}
+                </select>
+              ) : <Badge variant={m.role}>{t(`role.${m.role}`)}</Badge>}
               {isOwner && m.userId !== userId && (
                 <button aria-label={t("s.removeAria", { name: m.displayName })} className="p-1.5 text-pitch-500 hover:text-red-400"
                   onClick={() => confirm(t("s.confirmRemove", { name: m.displayName })) && run(async () => { await removeMember(team.id, m.userId); await refresh(); })}><Trash2 className="w-4 h-4" /></button>
@@ -116,13 +125,23 @@ export default function SettingsPage() {
         </ul>
         {isOwner && (
           <>
-            <div className="flex gap-2">
-              {(["coach", "staff"] as const).map((role) => (
-                <button key={role} className="surface-2 px-3 py-2.5 text-sm flex-1"
-                  onClick={() => run(async () => { if (!userId) return; await createInvite(team.id, role, userId); await refresh(); })}>
-                  {t("s.invite", { role: t(`role.${role}`) })}
-                </button>
-              ))}
+            <div className="surface p-3 space-y-3">
+              <fieldset>
+                <legend className="text-xs text-pitch-400 mb-2">{t("s.inviteAs")}</legend>
+                <div className="grid grid-cols-3 gap-1 p-1 surface-2" role="radiogroup">
+                  {(["owner", "coach", "staff"] as const).map((r) => (
+                    <button key={r} type="button" role="radio" aria-checked={inviteRole === r} onClick={() => setInviteRole(r)}
+                      className={"py-2 rounded-lg text-xs font-medium transition-colors " + (inviteRole === r ? "bg-white text-black" : "text-pitch-400 hover:text-white")}>
+                      {t(`role.${r}`)}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-pitch-500 mt-2">{t(`s.roleHelp.${inviteRole}` as "s.roleHelp.owner")}</p>
+              </fieldset>
+              <button className="btn-primary w-full py-2.5"
+                onClick={() => run(async () => { if (!userId) return; await createInvite(team.id, inviteRole, userId); await refresh(); })}>
+                {t("s.createInvite", { role: t(`role.${inviteRole}`) })}
+              </button>
             </div>
             {invites.map((i) => (
               <div key={i.code} className="surface p-3 flex items-center gap-3 text-sm">

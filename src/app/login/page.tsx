@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { createTeam, joinTeam } from "@/lib/db/teams";
 import { friendlyError } from "@/lib/db/util";
@@ -18,10 +18,16 @@ const TABS: { id: Mode; label: MessageKey }[] = [
 ];
 
 export default function LoginPage() {
+  // useSearchParams needs a Suspense boundary so the rest of the page can still be prerendered.
+  return <Suspense><Login /></Suspense>;
+}
+
+function Login() {
+  const params = useSearchParams();
   const { userId, member, loading, loadError, reload, signOut } = useAuth();
   const router = useRouter();
   const { t } = useT();
-  const [mode, setMode] = useState<Mode>("signin");
+  const [mode, setMode] = useState<Mode>(() => (params.get("mode") === "create" ? "create" : params.get("mode") === "join" ? "join" : "signin"));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [email, setEmail] = useState("");

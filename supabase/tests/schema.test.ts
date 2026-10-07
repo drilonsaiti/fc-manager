@@ -416,3 +416,40 @@ describe("personal links and strict mode", () => {
     expect(strict_links).toBe(false);
   });
 });
+
+describe("owner invites and role changes", () => {
+  it("an owner can invite another owner, who then manages the team", async () => {
+    const owner = await newUser(db), second = await newUser(db);
+    const { teamId } = await newTeam(db, owner);
+    await run(db, user(owner), "insert into public.team_invites (team_id, role, created_by, code) values ($1, 'owner', $2, 'own123')", [teamId, owner]);
+    await run(db, user(second), "select public.join_team('own123', 'Second')");
+    const [m] = await run<{ role: string }>(db, user(second), "select role from public.team_members where team_id = $1 and user_id = $2", [teamId, second]);
+    expect(m.role).toBe("owner");
+    await run(db, user(second), "insert into public.team_invites (team_id, role, created_by, code) values ($1, 'coach', $2, 'fromsecond')", [teamId, second]);
+  });
+
+  it("a coach cannot invite anyone, least of all an owner", async () => {
+    const owner = await newUser(db), coach = await newUser(db);
+    const { teamId } = await newTeam(db, owner);
+    await run(db, user(owner), "insert into public.team_invites (team_id, role, created_by, code) values ($1, 'coach', $2, 'coach1')", [teamId, owner]);
+    await run(db, user(coach), "select public.join_team('coach1', 'Coach')");
+    await expect(run(db, user(coach), "insert into public.team_invites (team_id, role, created_by, code) values ($1, 'owner', $2, 'sneaky')", [teamId, coach]))
+      .rejects.toThrow(/row-level security/);
+  });
+
+  it("an owner can promote or demote another member, never themselves, and a coach cannot", async () => {
+    const owner = await newUser(db), coach = await newUser(db);
+    const { teamId } = await newTeam(db, owner);
+    await run(db, user(owner), "insert into public.team_invites (team_id, role, created_by, code) values ($1, 'coach', $2, 'c2')", [teamId, owner]);
+    await run(db, user(coach), "select public.join_team('c2', 'Coach')");
+    await run(db, user(owner), "update public.team_members set role = 'owner' where team_id = $1 and user_id = $2", [teamId, coach]);
+    const role = async (u: string) => (await run<{ role: string }>(db, user(owner), "select role from public.team_members where team_id = $1 and user_id = $2", [teamId, u]))[0].role;
+    expect(await role(coach)).toBe("owner");
+    await run(db, user(owner), "update public.team_members set role = 'staff' where team_id = $1 and user_id = $2", [teamId, coach]);
+    expect(await role(coach)).toBe("staff");
+    await run(db, user(owner), "update public.team_members set role = 'staff' where team_id = $1 and user_id = $2", [teamId, owner]);
+    expect(await role(owner)).toBe("owner"); // zero rows updated: the owner cannot demote themselves
+    await run(db, user(coach), "update public.team_members set role = 'owner' where team_id = $1 and user_id = $2", [teamId, coach]);
+    expect(await role(coach)).toBe("staff");
+  });
+});

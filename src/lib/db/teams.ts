@@ -78,20 +78,24 @@ export async function listMembers(teamId: string): Promise<Member[]> {
   return rows.map(toMember);
 }
 
+export async function setMemberRole(teamId: string, userId: string, role: Role): Promise<void> {
+  check(await supabase().from("team_members").update({ role }).eq("team_id", teamId).eq("user_id", userId));
+}
+
 export async function removeMember(teamId: string, userId: string): Promise<void> {
   check(await supabase().from("team_members").delete().eq("team_id", teamId).eq("user_id", userId));
 }
 
-export interface Invite { code: string; role: "coach" | "staff"; expiresAt: Date }
+export interface Invite { code: string; role: Role; expiresAt: Date }
 
 export async function listInvites(teamId: string): Promise<Invite[]> {
   const rows = unwrap(await supabase().from("team_invites").select("code, role, expires_at")
     .eq("team_id", teamId).is("used_at", null).gt("expires_at", new Date().toISOString())
-    .order("expires_at")) as { code: string; role: "coach" | "staff"; expires_at: string }[];
+    .order("expires_at")) as { code: string; role: Role; expires_at: string }[];
   return rows.map((r) => ({ code: r.code, role: r.role, expiresAt: new Date(r.expires_at) }));
 }
 
-export async function createInvite(teamId: string, role: "coach" | "staff", userId: string): Promise<string> {
+export async function createInvite(teamId: string, role: Role, userId: string): Promise<string> {
   const rows = unwrap(await supabase().from("team_invites").insert({ team_id: teamId, role, created_by: userId })
     .select("code")) as { code: string }[];
   return rows[0].code;
