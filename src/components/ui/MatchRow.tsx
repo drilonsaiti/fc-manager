@@ -13,7 +13,7 @@ export function MatchRow({ match }: { match: Match }) {
   return (
     <Link href={`/matches/${match.id}`} className="surface flex items-center gap-3 p-4 active:scale-[0.99] transition-transform">
       <div className="flex-1 min-w-0">
-        <p className="font-medium truncate">{match.isHome ? t("m.vs") : t("m.at")} {match.opponent}</p>
+        <p className="font-medium truncate">{t("m.vs")} {match.opponent}</p>
         <p className="text-xs text-pitch-400 mt-0.5">{shortDate(match.kickoff)}{match.venue ? ` · ${match.venue}` : ""}</p>
       </div>
       {match.status === "final" && (
