@@ -24,7 +24,10 @@ type Selection = { kind: "slot"; id: string } | { kind: "player"; id: string } |
 
 const DOT: Record<AvailabilityState, string> = { yes: "bg-green-500", maybe: "bg-amber-400", none: "bg-pitch-500", no: "bg-red-500" };
 const RANK: Record<AvailabilityState, number> = { yes: 0, maybe: 1, none: 2, no: 3 };
-const surname = (name: string) => name.trim().split(/\s+/).slice(-1)[0];
+const shortName = (name: string) => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return parts.length > 1 ? `${parts[0]} ${parts.at(-1)![0]}.` : parts[0] ?? "?";
+};
 const noop = () => () => {};
 const canShareFiles = () => typeof navigator !== "undefined" && typeof navigator.canShare === "function";
 
@@ -118,7 +121,11 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
 
   // ── tap-to-assign (also the keyboard path) ─────────────────────
   function tapSlot(slotId: string) {
-    if (!editable || wasDrag()) return;
+    if (wasDrag()) return;
+    if (!editable) {
+      setSel(sel?.kind === "slot" && sel.id === slotId ? null : { kind: "slot", id: slotId });
+      return;
+    }
     if (sel?.kind === "player") { edit((s) => placePlayer(s, slotId, sel.id)); setSel(null); return; }
     if (sel?.kind === "slot" && sel.id !== slotId && state.slots[sel.id]) {
       edit((s) => placePlayer(s, slotId, s.slots[sel.id])); setSel(null); return;
@@ -127,7 +134,11 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
   }
 
   function tapPlayer(id: string) {
-    if (!editable || wasDrag()) return;
+    if (wasDrag()) return;
+    if (!editable) {
+      setSel(sel?.kind === "player" && sel.id === id ? null : { kind: "player", id });
+      return;
+    }
     if (sel?.kind === "slot") { edit((s) => placePlayer(s, sel.id, id)); setSel(null); return; }
     setSel(sel?.kind === "player" && sel.id === id ? null : { kind: "player", id });
   }
@@ -188,6 +199,7 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
 
   const selectedStarter = sel?.kind === "slot" ? state.slots[sel.id] : undefined;
   const selectedBench = sel?.kind === "player" && state.bench.includes(sel.id) ? sel.id : undefined;
+  const selectedPlayer = sel?.kind === "player" ? sel.id : undefined;
   const placed = startersOf(state);
   const overSlot = drag?.over?.kind === "slot" ? drag.over.id : null;
 
@@ -244,7 +256,7 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
                 style={{ left: `${pos.x}%`, top: `${pos.y}%`, WebkitTouchCallout: "none" }}
                 className={cn("absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5 w-16 select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-white rounded-lg",
                   (selected || isOver) && "z-10", ghosted && "opacity-30")}
-                onPointerDown={(e) => { if (editable && pid) begin(e, { playerId: pid, fromSlot: slot.id }, surname(nameOf(pid))); }}
+                onPointerDown={(e) => { if (editable && pid) begin(e, { playerId: pid, fromSlot: slot.id }, shortName(nameOf(pid))); }}
                 onContextMenu={(e) => e.preventDefault()}
                 onClick={() => tapSlot(slot.id)}>
                 <span data-drop={`slot:${slot.id}`}
@@ -254,7 +266,7 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
                   {pid ? (byId.get(pid)?.number ?? "•") : slot.label}
                   {a && <span className={cn("absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border border-black", DOT[a])} />}
                 </span>
-                {pid && <span className="text-[11px] leading-tight font-medium text-white bg-black/50 rounded px-1 max-w-full truncate">{surname(nameOf(pid))}</span>}
+                {pid && <span title={nameOf(pid)} className="text-[11px] leading-tight font-medium text-white bg-black/50 rounded px-1 max-w-full truncate">{shortName(nameOf(pid))}</span>}
               </button>
             );
           })}
@@ -273,6 +285,11 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
             <UserMinus className="w-4 h-4" />{t("l.remove")}
           </button>
           {selectedStarter && <span className="text-xs text-pitch-500 w-full">{t("l.hintSlot")}</span>}
+        </div>
+      )}
+      {!editable && (selectedStarter || selectedPlayer) && (
+        <div className="surface-2 p-3 text-sm" role="status">
+          {nameOf((selectedStarter ?? selectedPlayer)!)}
         </div>
       )}
       {editable && !selectedStarter && !selectedBench && (
@@ -315,7 +332,7 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
           {state.bench.map((id) => (
             <Chip key={id} player={byId.get(id)} a={availability.get(id) ?? "none"} selected={sel?.kind === "player" && sel.id === id}
               ghosted={dragging === id} onClick={() => tapPlayer(id)}
-              onPress={editable ? (e) => begin(e, { playerId: id, fromSlot: null }, surname(nameOf(id))) : undefined} />
+              onPress={editable ? (e) => begin(e, { playerId: id, fromSlot: null }, shortName(nameOf(id))) : undefined} />
           ))}
         </div>
       </div>
@@ -327,7 +344,7 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
           {pool.map((p) => (
             <Chip key={p.id} player={p} a={availability.get(p.id) ?? "none"} selected={sel?.kind === "player" && sel.id === p.id}
               ghosted={dragging === p.id} onClick={() => tapPlayer(p.id)}
-              onPress={editable ? (e) => begin(e, { playerId: p.id, fromSlot: null }, surname(p.name)) : undefined}
+              onPress={editable ? (e) => begin(e, { playerId: p.id, fromSlot: null }, shortName(p.name)) : undefined}
               onBench={editable ? () => edit((s) => benchPlayer(s, p.id)) : undefined} benchLabel={t("l.benchAria", { name: p.name })} />
           ))}
           {pool.length === 0 && <span className="text-xs text-pitch-500 self-center">{t("l.everyoneIn")}</span>}
@@ -385,7 +402,7 @@ function Chip({ player, a, selected, ghosted, onClick, onPress, onBench, benchLa
         className={cn("flex min-w-0 flex-1 items-center gap-2 pl-2.5 pr-2.5 py-2.5 text-left", onPress && "cursor-grab")}>
         <span className={cn("w-2 h-2 rounded-full", DOT[a])} aria-hidden />
         {player.number != null && <span className="text-pitch-500 tabular-nums text-xs">{player.number}</span>}
-        <span className="truncate">{player.name}</span>
+        <span title={player.name} className="truncate">{shortName(player.name)}</span>
       </button>
       {onBench && <button type="button" aria-label={benchLabel} onClick={onBench} className="px-2.5 border-l border-white/10 text-pitch-500 hover:text-white"><ArrowDownToLine className="w-3.5 h-3.5" /></button>}
     </span>

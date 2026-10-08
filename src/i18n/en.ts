@@ -117,8 +117,8 @@ export const en = {
   "s.seasons": "Seasons", "s.newSeasonPh": "New season, e.g. 2026/27", "s.start": "Start",
   "s.confirmSeason": "Start “{name}”? New matches and trainings will go into it. Old seasons stay available.",
   "s.seasonStarted": "New season started", "s.staff": "Coaching staff", "s.invite": "+ Invite {role}",
-  "s.inviteHelp": "Send the code; they choose “Join with code” on the sign-in page. Valid for 7 days, one use.",
-  "s.copyCode": "Copy code", "s.codeCopied": "Code copied", "s.deleteInvite": "Delete invite",
+  "s.inviteHelp": "Copy and send the invite link. It opens “Join with code” with the code filled in. Valid for 7 days, one use.",
+  "s.copyInviteLink": "Copy invite link", "s.inviteLinkCopied": "Invite link copied", "s.deleteInvite": "Delete invite",
   "s.removeAria": "Remove {name}", "s.confirmRemove": "Remove {name}?",
   "role.owner": "owner", "role.coach": "coach", "role.staff": "staff",
 

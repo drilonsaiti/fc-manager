@@ -13,7 +13,10 @@ const PITCH_W = 936;
 const PITCH_H = 1404; // 2:3, same shape as the on-screen pitch
 const FONT = '"DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
 
-const surname = (name: string) => name.trim().split(/\s+/).slice(-1)[0];
+const shortName = (name: string) => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return parts.length > 1 ? `${parts[0]} ${parts.at(-1)![0]}.` : parts[0] ?? "?";
+};
 
 function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
   if (ctx.measureText(text).width <= maxWidth) return text;
@@ -84,7 +87,7 @@ export function drawLineup(ctx: CanvasRenderingContext2D, input: LineupImageInpu
     ctx.fillText(p.number != null ? String(p.number) : "•", cx, cy + 2);
 
     ctx.font = `600 27px ${FONT}`;
-    const label = fitText(ctx, surname(p.name), 170);
+    const label = fitText(ctx, shortName(p.name), 170);
     const tw = ctx.measureText(label).width + 22;
     ctx.fillStyle = "rgba(0,0,0,.6)";
     ctx.beginPath(); ctx.roundRect(cx - tw / 2, cy + 46, tw, 40, 10); ctx.fill();
@@ -112,7 +115,7 @@ export function drawLineup(ctx: CanvasRenderingContext2D, input: LineupImageInpu
       ctx.textBaseline = "middle";
       ctx.fillText(b.number != null ? String(b.number) : "–", x + 14, yy + 27);
       ctx.font = `500 26px ${FONT}`;
-      ctx.fillText(fitText(ctx, surname(b.name), colW - 90), x + 62, yy + 27);
+      ctx.fillText(fitText(ctx, shortName(b.name), colW - 90), x + 62, yy + 27);
     });
   }
 

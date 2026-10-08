@@ -147,7 +147,12 @@ export default function SettingsPage() {
               <div key={i.code} className="surface p-3 flex items-center gap-3 text-sm">
                 <code className="flex-1 font-mono tracking-wider">{i.code}</code>
                 <Badge variant={i.role}>{t(`role.${i.role}`)}</Badge>
-                <button aria-label={t("s.copyCode")} className="p-1.5 text-pitch-400 hover:text-white" onClick={async () => say((await copyText(i.code)) ? t("s.codeCopied") : t("c.copyFail"))}><Copy className="w-4 h-4" /></button>
+                <button aria-label={t("s.copyInviteLink")} className="p-1.5 text-pitch-400 hover:text-white" onClick={async () => {
+                  const url = new URL("/login", window.location.origin);
+                  url.searchParams.set("mode", "join");
+                  url.searchParams.set("code", i.code);
+                  say((await copyText(url.toString())) ? t("s.inviteLinkCopied") : t("c.copyFail"));
+                }}><Copy className="w-4 h-4" /></button>
                 <button aria-label={t("s.deleteInvite")} className="p-1.5 text-pitch-500 hover:text-red-400" onClick={() => run(async () => { await deleteInvite(i.code); await refresh(); })}><Trash2 className="w-4 h-4" /></button>
               </div>
             ))}

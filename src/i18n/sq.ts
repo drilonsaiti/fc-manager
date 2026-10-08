@@ -106,8 +106,8 @@ export const sq: Record<MessageKey, string> = {
   "s.seasons": "Sezonet", "s.newSeasonPh": "Sezon i ri, p.sh. 2026/27", "s.start": "Fillo",
   "s.confirmSeason": "Të fillojë “{name}”? Ndeshjet dhe stërvitjet e reja do të shkojnë aty. Sezonet e vjetra mbeten.",
   "s.seasonStarted": "Sezoni i ri filloi", "s.staff": "Stafi trajnues", "s.invite": "+ Fto {role}",
-  "s.inviteHelp": "Dërgoni kodin; ata zgjedhin “Bashkohu me kod” te faqja e hyrjes. Vlen 7 ditë, një përdorim.",
-  "s.copyCode": "Kopjo kodin", "s.codeCopied": "Kodi u kopjua", "s.deleteInvite": "Fshi ftesën",
+  "s.inviteHelp": "Kopjoni dhe dërgoni lidhjen e ftesës. Ajo hap “Bashkohu me kod” me kodin e plotësuar. Vlen 7 ditë, për një përdorim.",
+  "s.copyInviteLink": "Kopjo lidhjen e ftesës", "s.inviteLinkCopied": "Lidhja e ftesës u kopjua", "s.deleteInvite": "Fshi ftesën",
   "s.removeAria": "Hiq {name}", "s.confirmRemove": "Ta heq {name}?",
   "role.owner": "pronar", "role.coach": "trajner", "role.staff": "staf",
 

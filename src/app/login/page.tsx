@@ -34,7 +34,7 @@ function Login() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [club, setClub] = useState("");
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(() => params.get("code") ?? "");
   const [trap, setTrap] = useState(""); // honeypot: people never see or fill this
   const shownAt = useRef(0);
 
