@@ -314,7 +314,6 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
             <button className="btn-primary flex items-center gap-2 py-2.5 px-4 whitespace-nowrap disabled:opacity-50" disabled={!dirty || saving} onClick={save}>
               <Save className="w-4 h-4" />{saving ? t("c.saving") : dirty ? t("l.save") : t("l.saved")}
             </button>
-            {dirty && <button className="btn-ghost whitespace-nowrap" onClick={() => { setDraft(null); setSel(null); }}>{t("l.discard")}</button>}
             <span role="status" className="text-xs text-green-400 truncate">{message}</span>
             <button type="button" aria-expanded={trayOpen} aria-label={t("l.trayToggle")} onClick={() => setTrayOpen((o) => !o)}
               className="md:hidden ml-auto shrink-0 flex items-center gap-1.5 px-3 h-10 rounded-lg border border-white/10 text-xs text-pitch-300">
@@ -324,6 +323,9 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
           </div>
         )}
       <div className={cn(!trayOpen && "max-md:hidden", "space-y-1")}>
+      {editable && dirty && <div className="flex justify-end px-2">
+        <button className="btn-ghost whitespace-nowrap text-xs py-1.5" onClick={() => { setDraft(null); setSel(null); }}>{t("l.discard")}</button>
+      </div>}
       {/* Bench (drop zone) */}
       <div data-drop="bench" className={cn("rounded-xl px-2 py-1.5 transition-colors", drag?.over?.kind === "bench" && "bg-white/10 ring-2 ring-white/40")}>
         <h3 className="text-xs uppercase tracking-widest text-pitch-500 mb-1">{t("l.bench", { n: state.bench.length })}</h3>
