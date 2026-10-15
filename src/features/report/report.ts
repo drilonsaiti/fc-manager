@@ -19,7 +19,7 @@ export interface ReportLabels {
 export const EN_REPORT_LABELS: ReportLabels = {
   result: { Win: "Win", Draw: "Draw", Loss: "Loss" },
   competition: { league: "League", cup: "Cup", friendly: "Friendly", tournament: "Tournament" },
-  matchReport: "MATCH REPORT", goals: "Goals", cards: "Cards", subs: "Substitutions", startingXI: "Starting XI", bench: "Bench", notes: "Notes",
+  matchReport: "MATCH REPORT", goals: "Goals", cards: "Cards", subs: "Substitutions", startingXI: "Starting lineup", bench: "Bench", notes: "Notes",
   assist: "assist", ownGoal: "own goal", opponent: "opponent", unknownPlayer: "Unknown player", goalFallback: "Goal",
   yellow: "Yellow card", red: "Red card", secondYellow: "Second yellow (sent off)",
   min: "Min", goal: "Goal", card: "Card", substitution: "Substitution", no: "No.", player: "Player", position: "Position",
@@ -98,7 +98,7 @@ export function buildReport(input: ReportInput): MatchReport {
   let startingXI: MatchReport["startingXI"] = [];
   let bench: MatchReport["bench"] = [];
   if (input.lineup) {
-    const state = fromEntries(input.lineup.formation, input.lineup.entries);
+    const state = fromEntries(input.lineup.formation, input.lineup.entries, input.lineup.format ?? "11v11");
     startingXI = startersOf(state).map(({ slot, playerId }) => ({
       label: slot.label, number: players.get(playerId)?.number ?? null, name: name(playerId)!,
     }));

@@ -45,7 +45,7 @@ export default function MatchesPage() {
       )}
 
       <Modal open={open} onClose={() => setOpen(false)} title={t("m.newTitle")}>
-        <MatchForm onCancel={() => setOpen(false)} onSubmit={async (input) => {
+        <MatchForm defaultFormat={team?.defaultFormat} onCancel={() => setOpen(false)} onSubmit={async (input) => {
           if (!team) return;
           const id = await createMatch(team.id, season?.id ?? null, input);
           await mutate();

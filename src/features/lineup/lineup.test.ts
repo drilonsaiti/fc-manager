@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { PRESET_FORMATIONS, buildFormation, getFormation, parseFormation } from "./formations";
+import { FORMAT_KEYS, FORMATS } from "@/features/formats/config";
 import {
   benchPlayer, changeFormation, emptyLineup, fromEntries, keepOnly, movePlayer, placePlayer,
   placeNearest, playerIds, removePlayer, resetLineup, slotOfPlayer, startersOf, toEntries, validateLineup,
 } from "./lineup";
 
 describe("formations", () => {
-  it.each(PRESET_FORMATIONS)("%s has 11 slots, one keeper, unique ids and on-pitch coordinates", (key) => {
+  it.each(PRESET_FORMATIONS)("%s has the configured number of slots, one keeper, unique ids and on-pitch coordinates", (key) => {
     const f = buildFormation(key)!;
     expect(f.slots).toHaveLength(11);
     expect(f.slots.filter((s) => s.role === "GK")).toHaveLength(1);
@@ -14,6 +15,14 @@ describe("formations", () => {
     for (const s of f.slots) {
       expect(s.x).toBeGreaterThanOrEqual(0); expect(s.x).toBeLessThanOrEqual(100);
       expect(s.y).toBeGreaterThanOrEqual(0); expect(s.y).toBeLessThanOrEqual(100);
+    }
+  });
+
+  it.each(FORMAT_KEYS)("%s presets match its player count", (format) => {
+    for (const key of FORMATS[format].formations) {
+      const formation = buildFormation(key, format)!;
+      expect(formation.slots).toHaveLength(FORMATS[format].playersOnPitch);
+      expect(formation.slots.filter((slot) => slot.role === "GK")).toHaveLength(1);
     }
   });
 
@@ -203,7 +212,7 @@ describe("validateLineup", () => {
     expect(errors.map((e) => e.code)).toEqual(["unknown_player"]);
   });
 
-  it("errors on more than 11 starters or a duplicated player (corrupt state)", () => {
+  it("errors when a corrupt lineup exceeds its format or duplicates a player", () => {
     const s = emptyLineup("4-4-2");
     const corrupt = { ...s, slots: Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`S${i}`, `p${i}`])) };
     expect(validateLineup(corrupt, ctx(Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`p${i}`, "yes"])))).errors.map((e) => e.code)).toContain("too_many_starters");

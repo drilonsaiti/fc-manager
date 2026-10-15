@@ -9,13 +9,17 @@ interface EntryRow {
 export async function getLineup(matchId: string): Promise<Lineup | null> {
   const head = unwrap(await supabase().from("lineups").select("formation").eq("match_id", matchId).limit(1)) as { formation: string }[];
   if (!head[0]) return null;
-  const rows = unwrap(await supabase().from("lineup_entries").select("player_id, role, slot_id, x, y, sort")
-    .eq("match_id", matchId)) as EntryRow[];
+  const [entryResult, matchResult] = await Promise.all([
+    supabase().from("lineup_entries").select("player_id, role, slot_id, x, y, sort").eq("match_id", matchId),
+    supabase().from("matches").select("format").eq("id", matchId).limit(1),
+  ]);
+  const rows = unwrap(entryResult) as EntryRow[];
+  const matchRows = unwrap(matchResult) as { format: Lineup["format"] }[];
   const entries: LineupEntry[] = rows.map((r) => ({
     playerId: r.player_id, role: r.role, slotId: r.slot_id,
     x: r.x == null ? null : Number(r.x), y: r.y == null ? null : Number(r.y), sort: r.sort,
   }));
-  return { matchId, formation: head[0].formation, entries };
+  return { matchId, formation: head[0].formation, format: matchRows[0]?.format ?? "11v11", entries };
 }
 
 export async function saveLineup(matchId: string, formation: string, entries: LineupEntry[]): Promise<void> {
@@ -26,15 +30,15 @@ export async function saveLineup(matchId: string, formation: string, entries: Li
   }));
 }
 
-export interface LineupSource { matchId: string; opponent: string; kickoff: Date; formation: string }
+export interface LineupSource { matchId: string; opponent: string; kickoff: Date; formation: string; format: Lineup["format"] }
 
 /** Earlier matches that have a saved lineup, for "duplicate a previous lineup". */
 export async function listLineupSources(teamId: string, excludeMatchId: string): Promise<LineupSource[]> {
   const heads = unwrap(await supabase().from("lineups").select("match_id, formation")
     .eq("team_id", teamId).neq("match_id", excludeMatchId)) as { match_id: string; formation: string }[];
   if (heads.length === 0) return [];
-  const matches = unwrap(await supabase().from("matches").select("id, opponent, kickoff")
-    .in("id", heads.map((h) => h.match_id)).order("kickoff", { ascending: false }).limit(10)) as { id: string; opponent: string; kickoff: string }[];
+  const matches = unwrap(await supabase().from("matches").select("id, opponent, kickoff, format")
+    .in("id", heads.map((h) => h.match_id)).order("kickoff", { ascending: false }).limit(10)) as { id: string; opponent: string; kickoff: string; format: Lineup["format"] }[];
   const formation = new Map(heads.map((h) => [h.match_id, h.formation]));
-  return matches.map((m) => ({ matchId: m.id, opponent: m.opponent, kickoff: new Date(m.kickoff), formation: formation.get(m.id) ?? "4-4-2" }));
+  return matches.map((m) => ({ matchId: m.id, opponent: m.opponent, kickoff: new Date(m.kickoff), formation: formation.get(m.id) ?? "4-4-2", format: m.format }));
 }

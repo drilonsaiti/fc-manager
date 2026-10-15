@@ -4,13 +4,21 @@ import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import { Copy, LogOut, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { createInvite, deleteInvite, listInvites, listMembers, removeMember, renameTeam, setMemberRole, setStrictLinks, startSeason, type Invite } from "@/lib/db/teams";
+import { createInvite, deleteInvite, listInvites, listMembers, removeMember, renameTeam, setMemberRole, setStrictLinks, startSeason, updatePublicProfile, type Invite } from "@/lib/db/teams";
 import { friendlyError } from "@/lib/db/util";
 import { copyText } from "@/lib/utils/clipboard";
 import { Badge } from "@/components/ui/Badge";
+import { Field } from "@/components/ui/Field";
 import { LangSwitch } from "@/components/ui/LangSwitch";
 import { useT } from "@/i18n";
-import type { Role } from "@/types";
+import type { Role, Team } from "@/types";
+import { FORMAT_KEYS, type GameFormat } from "@/features/formats/config";
+
+interface ProfileDraft {
+  isPublic: boolean; slug: string; defaultFormat: GameFormat; formats: GameFormat[]; logoUrl: string;
+  city: string; level: string; bio: string; contactPreference: "in_app" | "email" | "phone";
+  publicSchedule: boolean; publicRosterCount: boolean; publicContact: boolean;
+}
 
 export default function SettingsPage() {
   const { t } = useT();
@@ -60,6 +68,8 @@ export default function SettingsPage() {
           <LangSwitch />
         </div>
       </section>
+
+      {isOwner && <PublicProfileSettings key={team.id} team={team} reload={reload} />}
 
       {isOwner && (
         <section className="space-y-2">
@@ -162,4 +172,61 @@ export default function SettingsPage() {
       </section>
     </div>
   );
+}
+
+function PublicProfileSettings({ team, reload }: { team: Team; reload: () => Promise<void> }) {
+  const { t } = useT();
+  const [profile, setProfile] = useState<ProfileDraft>(() => ({
+    isPublic: team.isPublic, slug: team.slug ?? "", defaultFormat: team.defaultFormat,
+    formats: team.formats, logoUrl: team.logoUrl ?? "", city: team.city, level: team.level, bio: team.bio,
+    contactPreference: team.contactPreference, publicSchedule: team.publicSchedule,
+    publicRosterCount: team.publicRosterCount, publicContact: team.publicContact,
+  }));
+  const [message, setMessage] = useState("");
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    const slug = profile.slug.trim().toLowerCase();
+    if (profile.isPublic && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) { setMessage(t("err.invalid")); return; }
+    const formats = profile.formats.includes(profile.defaultFormat) ? profile.formats : [...profile.formats, profile.defaultFormat];
+    try {
+      await updatePublicProfile(team.id, { ...profile, slug: slug || null, formats, logoUrl: profile.logoUrl.trim() || null });
+      await reload(); setMessage(t("s.saved"));
+    } catch (e) { setMessage(friendlyError(e)); }
+  }
+  return <section className="space-y-3">
+    <h2 className="text-xs uppercase tracking-widest text-pitch-500">{t("s.publicProfile")}</h2>
+    <form onSubmit={save} className="surface p-4 space-y-3">
+      <label className="flex gap-3 items-start text-sm"><input type="checkbox" className="mt-1 w-5 h-5 accent-white" checked={profile.isPublic}
+        onChange={(e) => setProfile({ ...profile, isPublic: e.target.checked })} />
+        <span><span className="font-medium">{t("s.makePublic")}</span><span className="block text-xs text-pitch-400 mt-1">{t("s.profileHelp")}</span></span>
+      </label>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <Field label={t("s.profileSlug")}><input className="input-field" value={profile.slug} onChange={(e) => setProfile({ ...profile, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-") })} maxLength={80} placeholder="your-team" /></Field>
+        <Field label={t("s.city")}><input className="input-field" value={profile.city} onChange={(e) => setProfile({ ...profile, city: e.target.value })} maxLength={100} /></Field>
+        <Field label={t("s.logoUrl")}><input className="input-field" type="url" value={profile.logoUrl} onChange={(e) => setProfile({ ...profile, logoUrl: e.target.value })} maxLength={500} /></Field>
+        <Field label={t("s.level")}><select className="input-field" value={profile.level} onChange={(e) => setProfile({ ...profile, level: e.target.value })}>
+          {(["any", "beginner", "recreational", "intermediate", "competitive", "elite"] as const).map((x) => <option key={x} value={x}>{t(`level.${x}` as "level.any")}</option>)}
+        </select></Field>
+        <Field label={t("fmt.label")}><select className="input-field" value={profile.defaultFormat} onChange={(e) => setProfile({ ...profile, defaultFormat: e.target.value as GameFormat })}>
+          {FORMAT_KEYS.map((x) => <option key={x} value={x}>{t(`fmt.${x}` as "fmt.11v11")}</option>)}
+        </select></Field>
+        <Field label={t("s.contactPreference")}><select className="input-field" value={profile.contactPreference} onChange={(e) => setProfile({ ...profile, contactPreference: e.target.value as ProfileDraft["contactPreference"] })}>
+          <option value="in_app">{t("s.contact.in_app")}</option><option value="email">{t("s.contact.email")}</option><option value="phone">{t("s.contact.phone")}</option>
+        </select></Field>
+      </div>
+      <fieldset><legend className="text-xs text-pitch-400 mb-2">{t("pub.formats")}</legend><div className="flex flex-wrap gap-2">
+        {FORMAT_KEYS.map((x) => <label key={x} className="surface-2 rounded-lg px-2.5 py-2 text-xs flex items-center gap-2"><input type="checkbox" checked={profile.formats.includes(x)}
+          onChange={(e) => setProfile({ ...profile, formats: e.target.checked ? [...profile.formats, x] : profile.formats.filter((f) => f !== x) })} />{t(`fmt.${x}` as "fmt.11v11")}</label>)}
+      </div></fieldset>
+      <Field label={t("s.bio")}><textarea className="input-field" rows={3} value={profile.bio} onChange={(e) => setProfile({ ...profile, bio: e.target.value })} maxLength={500} /></Field>
+      <div className="space-y-2">
+        {([["publicSchedule", "s.publicSchedule"], ["publicRosterCount", "s.publicRoster"], ["publicContact", "s.publicContact"]] as const).map(([key, label]) => (
+          <label key={key} className="flex gap-2 items-center text-sm text-pitch-200"><input type="checkbox" checked={profile[key]} onChange={(e) => setProfile({ ...profile, [key]: e.target.checked })} />{t(label)}</label>
+        ))}
+      </div>
+      <button className="btn-primary">{t("c.save")}</button>
+      {message && <p role="status" className="text-xs text-pitch-300">{message}</p>}
+      {profile.isPublic && profile.slug && <p className="text-xs text-pitch-500">/teams/{profile.slug}</p>}
+    </form>
+  </section>;
 }

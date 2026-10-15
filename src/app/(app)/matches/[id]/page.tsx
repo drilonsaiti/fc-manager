@@ -97,7 +97,7 @@ export default function MatchPage() {
       {posting && <PostModal match={match} players={players} teamName={team.name} onClose={() => setPosting(false)} />}
 
       <Modal open={editing} onClose={() => setEditing(false)} title={t("m.editTitle")}>
-        <MatchForm initial={match} onCancel={() => setEditing(false)} onSubmit={async (input) => { await updateMatch(match.id, input); await mutate(); setEditing(false); }} />
+        <MatchForm initial={match} defaultFormat={match.format} onCancel={() => setEditing(false)} onSubmit={async (input) => { await updateMatch(match.id, input); await mutate(); setEditing(false); }} />
       </Modal>
     </div>
   );

@@ -25,7 +25,7 @@ export interface PostLabels {
 }
 
 export const EN_POST_LABELS: PostLabels = {
-  matchday: "MATCHDAY", cta: "Come and support us! 💪", startingXI: "STARTING XI", bench: "Bench",
+  matchday: "MATCHDAY", cta: "Come and support us! 💪", startingXI: "STARTING LINEUP", bench: "Bench",
   fullTime: "FULL TIME", win: "Victory! 🎉", draw: "A point each.", loss: "Not our day. We go again. 💪",
   goals: "Goals", redCard: "Red card", thanks: "Thank you for the support! 🙏", tag: "#football",
   roles: { GK: "GK", DEF: "DEF", MID: "MID", FWD: "FWD" },
@@ -68,7 +68,7 @@ export function buildPost(kind: PostKind, input: PostInput): string {
   } else if (kind === "lineup") {
     lines.push(`📋 ${l.startingXI}${input.lineup ? ` · ${input.lineup.formation}` : ""}`, versus(r), "");
     if (input.lineup) {
-      const state = fromEntries(input.lineup.formation, input.lineup.entries);
+      const state = fromEntries(input.lineup.formation, input.lineup.entries, input.lineup.format ?? "11v11");
       const byRole = new Map<SlotRole, string[]>();
       // report.startingXI is built from the same startersOf() order, so index i matches slot i
       startersOf(state).forEach(({ slot }, i) => {

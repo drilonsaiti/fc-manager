@@ -1,8 +1,14 @@
 // Domain types. Database rows are snake_case; repositories in lib/db map them to these.
 
 export type Role = "owner" | "coach" | "staff";
+import type { GameFormat } from "@/features/formats/config";
 
-export interface Team { id: string; name: string; strictLinks: boolean }
+export interface Team {
+  id: string; name: string; strictLinks: boolean; defaultFormat: GameFormat;
+  isPublic: boolean; slug: string | null; logoUrl: string | null; city: string; formats: GameFormat[];
+  level: string; bio: string; contactPreference: "in_app" | "email" | "phone";
+  publicSchedule: boolean; publicRosterCount: boolean; publicContact: boolean;
+}
 
 export interface Member {
   userId: string;
@@ -41,6 +47,8 @@ export interface Match {
   isHome: boolean;
   status: MatchStatus;
   durationMinutes: number;
+  format: GameFormat;
+  isPublic: boolean;
   startedAt: Date | null;
   ourScore: number | null;
   theirScore: number | null;
@@ -86,7 +94,7 @@ export interface LineupEntry {
   sort: number;
 }
 
-export interface Lineup { matchId: string; formation: string; entries: LineupEntry[] }
+export interface Lineup { matchId: string; formation: string; format?: GameFormat; entries: LineupEntry[] }
 
 export type EventType = "goal" | "own_goal" | "yellow" | "red" | "sub";
 export type Side = "us" | "them";

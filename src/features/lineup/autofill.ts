@@ -2,6 +2,7 @@ import type { AvailabilityState, SeasonPlayerStat } from "@/types";
 import type { FormationSlot, SlotRole } from "./formations";
 import { benchPlayer, placePlayer, slotOfPlayer, type LineupState } from "./lineup";
 import { getFormation } from "./formations";
+import { FORMATS } from "@/features/formats/config";
 
 /**
  * "Auto-fill": a transparent rule-based picker (no AI service, nothing leaves the app).
@@ -104,7 +105,7 @@ export interface AutoFillInput {
   availability: Map<string, AvailabilityState>;
   stats: SeasonPlayerStat[];
   matchesPlayed: number;
-  /** How many substitutes to keep on the bench (default 7). */
+  /** How many substitutes to keep on the bench (defaults to the format setting). */
   benchSize?: number;
 }
 
@@ -121,7 +122,7 @@ export interface AutoFillResult {
 }
 
 export function autoFill(start: LineupState, input: AutoFillInput): AutoFillResult {
-  const formation = getFormation(start.formation);
+  const formation = getFormation(start.formation, start.format);
   const empty = (formation?.slots ?? []).filter((s) => !start.slots[s.id]);
   const statBy = new Map(input.stats.map((s) => [s.playerId, s]));
   const placed = new Set(Object.values(start.slots));
@@ -158,7 +159,7 @@ export function autoFill(start: LineupState, input: AutoFillInput): AutoFillResu
   }
 
   // Bench: keep what the coach already chose, top up with the best remaining available players.
-  const size = input.benchSize ?? 7;
+  const size = input.benchSize ?? FORMATS[start.format].defaultBenchSize;
   const startersNow = new Set(Object.values(next.slots));
   const benchNow = next.bench.filter((id) => !startersNow.has(id));
   // Confirmed players first, then "maybe", then those who have not answered; more appearances break ties.

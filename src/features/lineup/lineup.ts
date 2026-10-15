@@ -1,7 +1,9 @@
 import type { AvailabilityState, LineupEntry } from "@/types";
-import { DEFAULT_FORMATION, getFormation, type FormationSlot, type SlotRole } from "./formations";
+import { DEFAULT_FORMATION, defaultFormationFor, getFormation, type FormationSlot, type SlotRole } from "./formations";
+import { FORMATS, type GameFormat } from "@/features/formats/config";
 
 export interface LineupState {
+  format: GameFormat;
   formation: string;
   /** slotId → playerId (only filled slots). */
   slots: Record<string, string>;
@@ -11,11 +13,13 @@ export interface LineupState {
   bench: string[];
 }
 
-export function emptyLineup(formation = DEFAULT_FORMATION): LineupState {
-  return { formation: getFormation(formation) ? formation : DEFAULT_FORMATION, slots: {}, offsets: {}, bench: [] };
+export function emptyLineup(formation?: string, format: GameFormat = "11v11"): LineupState {
+  const chosen = formation ?? (format === "11v11" ? DEFAULT_FORMATION : defaultFormationFor(format));
+  const safe = getFormation(chosen, format) ? chosen : defaultFormationFor(format);
+  return { format, formation: safe, slots: {}, offsets: {}, bench: [] };
 }
 
-const slotsOf = (s: LineupState): FormationSlot[] => getFormation(s.formation)?.slots ?? [];
+const slotsOf = (s: LineupState): FormationSlot[] => getFormation(s.formation, s.format)?.slots ?? [];
 
 export function positionOf(s: LineupState, slot: FormationSlot): { x: number; y: number } {
   return s.offsets[slot.id] ?? { x: slot.x, y: slot.y };
@@ -77,7 +81,7 @@ export function resetPositions(s: LineupState): LineupState {
 }
 
 export function resetLineup(s: LineupState): LineupState {
-  return emptyLineup(s.formation);
+  return emptyLineup(s.formation, s.format);
 }
 
 /**
@@ -85,7 +89,7 @@ export function resetLineup(s: LineupState): LineupState {
  * defenders fill defensive slots, and so on. Anyone who no longer fits goes to the bench.
  */
 export function changeFormation(s: LineupState, key: string): LineupState {
-  const next = getFormation(key);
+  const next = getFormation(key, s.format);
   if (!next || key === s.formation) return s;
   const old = slotsOf(s);
   const roleOf = new Map(old.map((x) => [x.id, x.role] as const));
@@ -106,7 +110,7 @@ export function changeFormation(s: LineupState, key: string): LineupState {
       else bench.push(p);
     });
   });
-  return { formation: key, slots, offsets: {}, bench };
+  return { format: s.format, formation: key, slots, offsets: {}, bench };
 }
 
 export function startersOf(s: LineupState): { slot: FormationSlot; playerId: string }[] {
@@ -125,8 +129,8 @@ export function toEntries(s: LineupState): LineupEntry[] {
   return [...starters, ...bench];
 }
 
-export function fromEntries(formation: string, entries: LineupEntry[]): LineupState {
-  const base = emptyLineup(formation);
+export function fromEntries(formation: string, entries: LineupEntry[], format: GameFormat = "11v11"): LineupState {
+  const base = emptyLineup(formation, format);
   const slots = slotsOf(base);
   const state: LineupState = { ...base, slots: {}, offsets: {}, bench: [] };
   const overflow: string[] = [];
@@ -152,7 +156,7 @@ export function keepOnly(s: LineupState, allowed: Set<string>): LineupState {
 }
 
 export interface LineupIssue {
-  code: "unknown_player" | "duplicate" | "too_many_starters" | "no_goalkeeper" | "incomplete" | "unavailable" | "no_response";
+  code: "unknown_player" | "duplicate" | "too_many_starters" | "too_many_squad" | "no_goalkeeper" | "incomplete" | "unavailable" | "no_response";
   message: string;
   playerId?: string;
   /** Values for translating the message: { name } or { count }. */
@@ -174,13 +178,16 @@ export function validateLineup(
     seen.add(id);
     if (!ctx.activeIds.has(id)) errors.push({ code: "unknown_player", message: `${nameOf(id)} is no longer in the squad.`, playerId: id, params: { name: nameOf(id) } });
   }
+  const maxSquad = FORMATS[s.format].maxSquad;
+  if (new Set(all).size > maxSquad) errors.push({ code: "too_many_squad", message: `A match squad can have at most ${maxSquad} players.`, params: { max: maxSquad } });
 
   const starters = Object.values(s.slots);
-  if (starters.length > 11) errors.push({ code: "too_many_starters", message: "A team starts with 11 players at most." });
+  const maxStarters = FORMATS[s.format].playersOnPitch;
+  if (starters.length > maxStarters) errors.push({ code: "too_many_starters", message: `A team starts with ${maxStarters} players at most.`, params: { count: starters.length, max: maxStarters } });
 
   const gk = slotsOf(s).find((x) => x.role === "GK");
   if (gk && !s.slots[gk.id]) warnings.push({ code: "no_goalkeeper", message: "Nobody is in goal." });
-  if (starters.length < 11) warnings.push({ code: "incomplete", message: `Only ${starters.length} of 11 starters picked.`, params: { count: starters.length } });
+  if (starters.length < maxStarters) warnings.push({ code: "incomplete", message: `Only ${starters.length} of ${maxStarters} starters picked.`, params: { count: starters.length, total: maxStarters } });
 
   for (const id of new Set(all)) {
     const a = ctx.availability.get(id) ?? "none";

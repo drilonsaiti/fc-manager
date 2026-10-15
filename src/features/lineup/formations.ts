@@ -10,6 +10,8 @@ export interface FormationSlot {
   y: number;
 }
 
+import { defaultFormation, FORMATS, type GameFormat } from "@/features/formats/config";
+
 export interface FormationDef { key: string; slots: FormationSlot[] }
 
 /** Offered in the picker. Any other valid key (e.g. "4-1-4-1") works too — see parseFormation. */
@@ -18,13 +20,16 @@ export const PRESET_FORMATIONS = [
 ] as const;
 
 export const DEFAULT_FORMATION = "4-4-2";
+export const PRESET_FORMATIONS_BY_FORMAT = Object.fromEntries(
+  Object.entries(FORMATS).map(([format, config]) => [format, config.formations]),
+) as Record<GameFormat, readonly string[]>;
 
 /** "4-3-3" → [4, 3, 3]. Needs 2–5 lines of 1–6 players totalling 10 outfield players. */
-export function parseFormation(key: string): number[] | null {
+export function parseFormation(key: string, format: GameFormat = "11v11"): number[] | null {
   if (!/^\d(-\d){1,4}$/.test(key)) return null;
   const lines = key.split("-").map(Number);
   if (lines.some((n) => n < 1 || n > 6)) return null;
-  if (lines.reduce((a, b) => a + b, 0) !== 10) return null;
+  if (lines.reduce((a, b) => a + b, 0) !== FORMATS[format].playersOnPitch - 1) return null;
   return lines;
 }
 
@@ -54,8 +59,8 @@ function labels(role: SlotRole, count: number, midIndex: number, midLines: numbe
     ?? Array(count).fill("M");
 }
 
-export function buildFormation(key: string): FormationDef | null {
-  const lines = parseFormation(key);
+export function buildFormation(key: string, format: GameFormat = "11v11"): FormationDef | null {
+  const lines = parseFormation(key, format);
   if (!lines) return null;
 
   const slots: FormationSlot[] = [{ id: "GK", role: "GK", label: "GK", x: 50, y: 90 }];
@@ -73,10 +78,13 @@ export function buildFormation(key: string): FormationDef | null {
 const cache = new Map<string, FormationDef>();
 
 /** Returns the formation, or null when the key is not a valid formation. */
-export function getFormation(key: string): FormationDef | null {
-  const hit = cache.get(key);
+export function getFormation(key: string, format: GameFormat = "11v11"): FormationDef | null {
+  const cacheKey = `${format}:${key}`;
+  const hit = cache.get(cacheKey);
   if (hit) return hit;
-  const built = buildFormation(key);
-  if (built) cache.set(key, built);
+  const built = buildFormation(key, format);
+  if (built) cache.set(cacheKey, built);
   return built;
 }
+
+export function defaultFormationFor(format: GameFormat): string { return defaultFormation(format); }

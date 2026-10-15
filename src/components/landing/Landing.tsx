@@ -96,6 +96,7 @@ export function Landing() {
         <nav className="links" aria-label="Sections">
           <a href="#features">{t("lp.nav.features")}</a>
           <a href="#how">{t("lp.nav.how")}</a>
+          <Link href="/teams">{t("lp.nav.teams")}</Link>
         </nav>
         <div className="right">
           <LangSwitch />

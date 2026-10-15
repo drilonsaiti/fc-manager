@@ -2,7 +2,7 @@
 import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, CalendarDays, Dumbbell, Home, Settings, Users } from "lucide-react";
+import { BarChart3, CalendarDays, Dumbbell, Home, Settings, Users, Swords } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { PageLoader } from "./LoadingSpinner";
 import { cn } from "@/lib/utils/cn";
@@ -15,6 +15,7 @@ const NAV: { href: string; label: MessageKey; icon: typeof Home }[] = [
   { href: "/matches", label: "nav.matches", icon: CalendarDays },
   { href: "/players", label: "nav.squad", icon: Users },
   { href: "/trainings", label: "nav.training", icon: Dumbbell },
+  { href: "/challenges", label: "nav.opponents", icon: Swords },
   { href: "/stats", label: "nav.stats", icon: BarChart3 },
 ];
 
@@ -73,7 +74,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {/* Mobile bottom navigation */}
         <nav aria-label={t("nav.main")} className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-pitch-950/95 backdrop-blur border-t border-white/10 pb-[env(safe-area-inset-bottom)]">
-          <ul className="grid grid-cols-5">
+          <ul className="grid grid-cols-6">
             {NAV.map(({ href, label, icon: Icon }) => (
               <li key={href}>
                 <Link href={href} aria-current={active(href) ? "page" : undefined}

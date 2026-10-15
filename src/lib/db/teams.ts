@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase/client";
 import { check, unwrap } from "./util";
 import type { Member, Role, Season, Team } from "@/types";
+import { isGameFormat } from "@/features/formats/config";
 
 interface MemberRow { team_id: string; user_id: string; role: Role; display_name: string }
 interface SeasonRow { id: string; team_id: string; name: string; is_active: boolean }
@@ -17,9 +18,23 @@ export async function fetchMembership(userId: string): Promise<Member | null> {
 export interface Membership { member: Member; team: Team }
 export interface Club { memberships: Membership[]; seasons: Season[] }
 
-type TeamRow = { id: string; name: string; strict_links: boolean };
-const toTeam = (r: TeamRow | undefined, fallbackId: string): Team =>
-  ({ id: r?.id ?? fallbackId, name: r?.name ?? "", strictLinks: r?.strict_links ?? false });
+type TeamRow = {
+  id: string; name: string; strict_links: boolean; default_format?: string; is_public?: boolean;
+  slug?: string | null; logo_url?: string | null; city?: string; formats?: string[]; level?: string; bio?: string;
+  contact_preference?: Team["contactPreference"]; public_schedule?: boolean; public_roster_count?: boolean; public_contact?: boolean;
+};
+const toTeam = (r: TeamRow | undefined, fallbackId: string): Team => {
+  const formats = (r?.formats ?? ["11v11"]).filter(isGameFormat);
+  const defaultFormat = isGameFormat(r?.default_format) ? r.default_format : "11v11";
+  return {
+    id: r?.id ?? fallbackId, name: r?.name ?? "", strictLinks: r?.strict_links ?? false,
+    defaultFormat, isPublic: r?.is_public ?? false, slug: r?.slug ?? null, logoUrl: r?.logo_url ?? null,
+    city: r?.city ?? "", formats: formats.length ? formats : ["11v11"], level: r?.level ?? "any", bio: r?.bio ?? "",
+    contactPreference: r?.contact_preference ?? "in_app", publicSchedule: r?.public_schedule ?? false,
+    publicRosterCount: r?.public_roster_count ?? false, publicContact: r?.public_contact ?? false,
+  };
+};
+const TEAM_COLUMNS = "id, name, strict_links, default_format, is_public, slug, logo_url, city, formats, level, bio, contact_preference, public_schedule, public_roster_count, public_contact";
 
 /**
  * Every team the user belongs to (U19, U17 ...) plus their seasons, in one round trip
@@ -27,7 +42,7 @@ const toTeam = (r: TeamRow | undefined, fallbackId: string): Team =>
  */
 export async function fetchClub(userId: string): Promise<Club | null> {
   const [mem, sea] = await Promise.all([
-    supabase().from("team_members").select("team_id, user_id, role, display_name, teams(id, name, strict_links)")
+    supabase().from("team_members").select(`team_id, user_id, role, display_name, teams(${TEAM_COLUMNS})`)
       .eq("user_id", userId).order("created_at"),
     supabase().from("seasons").select("id, team_id, name, is_active").order("created_at", { ascending: false }),
   ]);
@@ -41,7 +56,7 @@ export async function fetchClub(userId: string): Promise<Club | null> {
 }
 
 export async function fetchTeam(teamId: string): Promise<Team | null> {
-  const rows = unwrap(await supabase().from("teams").select("id, name, strict_links").eq("id", teamId).limit(1)) as TeamRow[];
+  const rows = unwrap(await supabase().from("teams").select(TEAM_COLUMNS).eq("id", teamId).limit(1)) as TeamRow[];
   return rows[0] ? toTeam(rows[0], teamId) : null;
 }
 
@@ -66,6 +81,20 @@ export async function startSeason(teamId: string, name: string): Promise<string>
 
 export async function renameTeam(teamId: string, name: string): Promise<void> {
   check(await supabase().from("teams").update({ name: name.trim() }).eq("id", teamId));
+}
+
+export async function updatePublicProfile(teamId: string, input: {
+  isPublic: boolean; slug: string | null; defaultFormat: Team["defaultFormat"]; formats: Team["formats"];
+  logoUrl: string | null; city: string; level: string; bio: string;
+  contactPreference: Team["contactPreference"]; publicSchedule: boolean;
+  publicRosterCount: boolean; publicContact: boolean;
+}): Promise<void> {
+  check(await supabase().from("teams").update({
+    is_public: input.isPublic, slug: input.slug, default_format: input.defaultFormat, formats: input.formats,
+    logo_url: input.logoUrl, city: input.city.trim(), level: input.level, bio: input.bio.trim(),
+    contact_preference: input.contactPreference, public_schedule: input.publicSchedule,
+    public_roster_count: input.publicRosterCount, public_contact: input.publicContact,
+  }).eq("id", teamId));
 }
 
 export async function setStrictLinks(teamId: string, strict: boolean): Promise<void> {

@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLineup, useSeasonStats } from "@/hooks/data";
 import { getLineup, listLineupSources, saveLineup, type LineupSource } from "@/lib/db/lineup";
 import { friendlyError } from "@/lib/db/util";
-import { PRESET_FORMATIONS, getFormation, parseFormation } from "@/features/lineup/formations";
+import { PRESET_FORMATIONS_BY_FORMAT, getFormation, parseFormation } from "@/features/lineup/formations";
 import {
   benchPlayer, changeFormation, emptyLineup, fromEntries, keepOnly, movePlayer, placeNearest, placePlayer, playerIds,
   positionOf, removePlayer, resetLineup, resetPositions, startersOf, toEntries, validateLineup, type LineupState,
@@ -56,7 +56,7 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
   const { data: seasonData } = useSeasonStats(team?.id, match.seasonId ?? undefined);
 
   // The saved lineup is the base; `draft` holds unsaved edits.
-  const saved = useMemo(() => (lineup ? fromEntries(lineup.formation, lineup.entries) : emptyLineup()), [lineup]);
+  const saved = useMemo(() => (lineup ? fromEntries(lineup.formation, lineup.entries, match.format) : emptyLineup(undefined, match.format)), [lineup, match.format]);
   const state = draft ?? saved;
   const dirty = draft !== null;
 
@@ -165,7 +165,7 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
     try {
       const l = await getLineup(src.matchId);
       if (!l) return;
-      setDraft(keepOnly(fromEntries(l.formation, l.entries), activeIds));
+      setDraft(keepOnly(fromEntries(l.formation, l.entries, src.format ?? "11v11"), activeIds));
       setSources(null);
       setMessage(t("l.copiedFrom", { opponent: src.opponent }));
     } catch (e) { setMessage(friendlyError(e)); }
@@ -208,14 +208,14 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
       <div className="flex flex-wrap items-center gap-2">
         <select className="input-field !w-auto !py-2" aria-label={t("l.formation")} disabled={!editable} value={state.formation}
           onChange={(e) => edit((s) => changeFormation(s, e.target.value))}>
-          {!PRESET_FORMATIONS.includes(state.formation as never) && <option value={state.formation}>{state.formation}</option>}
-          {PRESET_FORMATIONS.map((f) => <option key={f} value={f}>{f}</option>)}
+          {!PRESET_FORMATIONS_BY_FORMAT[match.format].includes(state.formation) && <option value={state.formation}>{state.formation}</option>}
+          {PRESET_FORMATIONS_BY_FORMAT[match.format].map((f) => <option key={f} value={f}>{f}</option>)}
         </select>
         {editable && (
           <>
             <input className="input-field !w-24 !py-2" placeholder="4-1-4-1" aria-label={t("l.custom")} value={customFormation}
               onChange={(e) => setCustomFormation(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && parseFormation(customFormation) && getFormation(customFormation)) { edit((s) => changeFormation(s, customFormation)); setCustomFormation(""); } }} />
+              onKeyDown={(e) => { if (e.key === "Enter" && parseFormation(customFormation, match.format) && getFormation(customFormation, match.format)) { edit((s) => changeFormation(s, customFormation)); setCustomFormation(""); } }} />
             <button className="btn-primary flex items-center gap-1.5 !py-2" onClick={fillAuto}><Sparkles className="w-4 h-4" />{t("l.auto")}</button>
             <button className="btn-ghost flex items-center gap-1.5" onClick={openSources}><Copy className="w-4 h-4" />{t("l.copyPrev")}</button>
             <button className="btn-ghost" onClick={() => edit(resetPositions)}>{t("l.resetSpots")}</button>
@@ -243,7 +243,7 @@ export function LineupBuilder({ match, teamName, players, availability, readOnly
       <div className="md:col-start-2 md:row-start-1 space-y-4 min-w-0">
       <div data-drop="pitch" className={cn("rounded-xl", drag && "ring-2 ring-white/20")}>
         <Pitch ref={pitchRef}>
-          {getFormation(state.formation)?.slots.map((slot) => {
+          {getFormation(state.formation, state.format)?.slots.map((slot) => {
             const pid = state.slots[slot.id];
             const pos = positionOf(state, slot);
             const selected = sel?.kind === "slot" && sel.id === slot.id;

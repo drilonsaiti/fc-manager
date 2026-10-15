@@ -427,7 +427,153 @@ describe("owner invites and role changes", () => {
     expect(m.role).toBe("owner");
     await run(db, user(second), "insert into public.team_invites (team_id, role, created_by, code) values ($1, 'coach', $2, 'fromsecond')", [teamId, second]);
   });
+});
 
+describe("formats and public discovery", () => {
+  it("keeps the database format allowlist aligned with the application catalog", async () => {
+    const [constraint] = await run<{ definition: string }>(db, SYSTEM,
+      "select pg_get_constraintdef(oid) as definition from pg_constraint where conname = 'matches_format_check'");
+    for (const format of ["11v11", "9v9", "7v7", "6v6", "5v5", "4v4", "futsal"]) {
+      expect(constraint.definition).toContain(format);
+    }
+  });
+
+  it("backfills 11v11, inherits the team default, and validates lineup size by match format", async () => {
+    const owner = await newUser(db);
+    const t = await newTeam(db, owner);
+    const p = await addPlayer(db, owner, t.teamId, "Keeper");
+    await run(db, user(owner), "update public.teams set default_format = '7v7', formats = array['11v11', '7v7'] where id = $1", [t.teamId]);
+    const [m] = await run<{ id: string; format: string }>(db, user(owner),
+      "insert into public.matches (team_id, season_id, opponent, kickoff) values ($1, $2, 'Small FC', now() + interval '3 days') returning id, format",
+      [t.teamId, t.seasonId]);
+    expect(m.format).toBe("7v7");
+    await run(db, user(owner), "select public.save_lineup($1, '2-2-2', $2::jsonb)", [
+      m.id, JSON.stringify([{ player_id: p, role: "starter", slot_id: "GK", x: 50, y: 90 }]),
+    ]);
+    const [saved] = await run<{ formation: string }>(db, user(owner), "select formation from public.lineups where match_id = $1", [m.id]);
+    expect(saved.formation).toBe("2-2-2");
+    await expect(run(db, user(owner), "select public.save_lineup($1, '4-4-2', '[]'::jsonb)", [m.id]))
+      .rejects.toThrow(/formation does not match format/);
+    const [old] = await run<{ format: string }>(db, user(owner),
+      "insert into public.matches (team_id, season_id, opponent, kickoff) values ($1, $2, 'Old match', now()) returning format",
+      [t.teamId, t.seasonId]);
+    expect(old.format).toBe("7v7");
+  });
+
+  it("keeps team records private while narrow functions expose approved public fields", async () => {
+    const owner = await newUser(db), outsider = await newUser(db);
+    const t = await newTeam(db, owner);
+    await run(db, user(owner), "update public.teams set is_public = true, slug = 'public-fc', city = 'Skopje', formats = array['11v11'] where id = $1", [t.teamId]);
+    await addPlayer(db, owner, t.teamId, "Private player", 9);
+    expect(await run(db, user(outsider), "select id from public.teams where id = $1", [t.teamId])).toHaveLength(0);
+    const [{ profile }] = await run<{ profile: Record<string, unknown> }>(db, SERVICE,
+      "select public.public_team_profile('public-fc') as profile");
+    expect(profile).toMatchObject({ slug: "public-fc", name: "FC Test", city: "Skopje", rosterCount: null });
+    expect(JSON.stringify(profile)).not.toMatch(/Private player|phone|access_code|share_token/);
+    await expect(run(db, ANON, "select public.public_team_profile('public-fc')")).rejects.toThrow(/permission denied/);
+  });
+
+  it("lists public teams and matches only through narrow discovery functions", async () => {
+    const owner = await newUser(db);
+    const t = await newTeam(db, owner, "Public Schedule FC");
+    await run(db, user(owner), "update public.teams set is_public = true, slug = 'public-schedule', city = 'Skopje', public_schedule = true where id = $1", [t.teamId]);
+    const [match] = await run<{ id: string }>(db, user(owner),
+      "insert into public.matches (team_id, season_id, opponent, kickoff, venue, is_public) values ($1, $2, 'Away FC', now() + interval '4 days', 'City Ground', true) returning id",
+      [t.teamId, t.seasonId]);
+    const directory = await run<{ result: Record<string, unknown>[] }>(db, SERVICE,
+      "select public.public_team_directory('Public Schedule', null, 'Skopje', null, 10, 0) as result");
+    expect(directory).toHaveLength(1);
+    expect(directory[0].result).toMatchObject({ slug: "public-schedule", city: "Skopje" });
+    const schedule = await run<{ result: Record<string, unknown>[] }>(db, SERVICE,
+      "select public.public_team_schedule('public-schedule') as result");
+    expect(schedule).toHaveLength(1);
+    expect(schedule[0].result).toMatchObject({ opponent: "Away FC", venue: "City Ground" });
+    const global = await run<{ result: Record<string, unknown>[] }>(db, SERVICE,
+      "select public.public_upcoming_matches('11v11', 'Skopje', now(), now() + interval '10 days', 20, 0) as result");
+    expect(global[0].result).toMatchObject({ matchId: match.id, teamSlug: "public-schedule", opponent: "Away FC" });
+    await run(db, user(owner), "update public.matches set is_public = false where id = $1", [match.id]);
+    expect(await run(db, SERVICE, "select public.public_team_schedule('public-schedule') as result")).toHaveLength(0);
+  });
+
+  it("handles a challenge request, acceptance, paired matches, confirmation and cancellation", async () => {
+    const owner = await newUser(db), requester = await newUser(db);
+    const home = await newTeam(db, owner, "Home City FC");
+    const away = await newTeam(db, requester, "Away City FC");
+    await run(db, user(owner), "update public.teams set is_public = true, slug = 'home-city', city = 'Skopje' where id = $1", [home.teamId]);
+    await run(db, user(requester), "update public.teams set is_public = true, slug = 'away-city', city = 'Tetovo' where id = $1", [away.teamId]);
+    const [{ challenge }] = await run<{ challenge: string }>(db, SERVICE,
+      "select public.create_challenge($1, $2, '11v11', now() + interval '5 days', null, 'Skopje', 'any', 'Friendly match', 'client-hash') as challenge",
+      [owner, home.teamId]);
+    const [{ request }] = await run<{ request: string }>(db, SERVICE,
+      "select public.request_challenge($1, $2, $3, 'We are available', 'client-hash') as request",
+      [requester, challenge, away.teamId]);
+    const [inbox] = await run<{ inbox: { requests: unknown[] } }>(db, SERVICE,
+      "select public.team_challenge_inbox($1, $2) as inbox", [owner, home.teamId]);
+    expect(inbox.inbox.requests).toHaveLength(1);
+    const [{ accepted }] = await run<{ accepted: { status: string; homeMatchId: string; awayMatchId: string } }>(db, SERVICE,
+      "select public.respond_to_challenge($1, $2, true) as accepted", [owner, request]);
+    expect(accepted.status).toBe("accepted");
+    const paired = await run<{ team_id: string; opponent: string }>(db, SYSTEM,
+      "select team_id, opponent from public.matches where id in ($1, $2) order by opponent", [accepted.homeMatchId, accepted.awayMatchId]);
+    expect(paired).toHaveLength(2);
+    await run(db, SERVICE, "select public.confirm_challenge($1, $2)", [requester, request]);
+    const [confirmed] = await run<{ status: string }>(db, SYSTEM, "select status from app.challenges where id = $1", [challenge]);
+    expect(confirmed.status).toBe("confirmed");
+    await run(db, SERVICE, "select public.cancel_challenge($1, $2)", [owner, challenge]);
+    const cancelled = await run<{ status: string }>(db, SYSTEM,
+      "select status from public.matches where id in ($1, $2)", [accepted.homeMatchId, accepted.awayMatchId]);
+    expect(cancelled).toEqual([{ status: "cancelled" }, { status: "cancelled" }]);
+  });
+
+  it("enforces challenge membership and team blocks", async () => {
+    const owner = await newUser(db), requester = await newUser(db), outsider = await newUser(db), intruder = await newUser(db);
+    const host = await newTeam(db, owner, "Host FC"), guest = await newTeam(db, requester, "Guest FC"), stranger = await newTeam(db, outsider, "Stranger FC");
+    await run(db, user(owner), "update public.teams set is_public = true, slug = 'host-fc' where id = $1", [host.teamId]);
+    await run(db, user(requester), "update public.teams set is_public = true, slug = 'guest-fc' where id = $1", [guest.teamId]);
+    const [{ challenge }] = await run<{ challenge: string }>(db, SERVICE,
+      "select public.create_challenge($1, $2, '11v11', now() + interval '5 days', null, 'Pitch', 'any', '', 'h1') as challenge", [owner, host.teamId]);
+    await run(db, SERVICE, "select public.block_team($1, $2, $3)", [owner, host.teamId, guest.teamId]);
+    await expect(run(db, SERVICE, "select public.request_challenge($1, $2, $3, '', 'h2')", [requester, challenge, guest.teamId]))
+      .rejects.toThrow(/cannot request/);
+    await expect(run(db, SERVICE, "select public.request_challenge($1, $2, $3, '', 'h3')", [intruder, challenge, stranger.teamId]))
+      .rejects.toThrow(/not allowed/);
+    await run(db, SERVICE, "select public.unblock_team($1, $2, $3)", [owner, host.teamId, guest.teamId]);
+    const [{ request }] = await run<{ request: string }>(db, SERVICE,
+      "select public.request_challenge($1, $2, $3, '', 'h4') as request", [requester, challenge, guest.teamId]);
+    const [{ report_id: reportId }] = await run<{ report_id: string }>(db, SERVICE,
+      "select public.report_challenge($1, $2, $3, 'Wrong location', 'report-hash') as report_id", [requester, guest.teamId, challenge]);
+    expect(reportId).toBeTruthy();
+    await run(db, SERVICE, "select public.cancel_challenge_request($1, $2)", [requester, request]);
+    const [status] = await run<{ status: string }>(db, SYSTEM, "select status from app.challenge_requests where id = $1", [request]);
+    expect(status.status).toBe("cancelled");
+    const reports = await run<{ id: string }>(db, user(requester), "select id from app.challenge_reports where id = $1", [reportId]);
+    expect(reports).toHaveLength(1);
+    expect(await run(db, user(owner), "select id from app.challenge_reports where id = $1", [reportId])).toHaveLength(0);
+    await run(db, SERVICE, "select public.mark_notification_read($1, $2)", [owner, (await run<{ id: string }>(db, SYSTEM, "select id from app.notifications where team_id = $1 order by created_at limit 1", [host.teamId]))[0].id]);
+    const [read] = await run<{ read_at: string | null }>(db, SYSTEM, "select read_at from app.notifications where team_id = $1 order by created_at limit 1", [host.teamId]);
+    expect(read.read_at).not.toBeNull();
+  });
+
+  it("expires stale requests and isolates every discovery table with RLS", async () => {
+    const owner = await newUser(db), requester = await newUser(db), outsider = await newUser(db);
+    const host = await newTeam(db, owner, "Expire Host"), guest = await newTeam(db, requester, "Expire Guest");
+    const [{ challenge }] = await run<{ challenge: string }>(db, SERVICE,
+      "select public.create_challenge($1, $2, '11v11', now() + interval '5 days', null, 'Pitch', 'any', '', 'expire-hash') as challenge", [owner, host.teamId]);
+    const [{ request }] = await run<{ request: string }>(db, SERVICE,
+      "select public.request_challenge($1, $2, $3, '', 'expire-request-hash') as request", [requester, challenge, guest.teamId]);
+    await run(db, SYSTEM, "update app.challenges set created_at = now() - interval '2 days', expires_at = now() - interval '1 minute' where id = $1", [challenge]);
+    await run(db, SERVICE, "select public.expire_challenges()");
+    const [requestStatus] = await run<{ status: string }>(db, SYSTEM, "select status from app.challenge_requests where id = $1", [request]);
+    expect(requestStatus.status).toBe("expired");
+    for (const table of ["challenges", "challenge_requests", "notifications", "team_blocks", "challenge_reports"]) {
+      expect(await run(db, user(outsider), `select * from app.${table}`)).toHaveLength(0);
+      await expect(run(db, user(outsider), `insert into app.${table} default values`)).rejects.toThrow();
+    }
+    await expect(run(db, ANON, "select * from app.challenges")).rejects.toThrow(/permission denied/);
+});
+});
+
+describe("owner role changes", () => {
   it("a coach cannot invite anyone, least of all an owner", async () => {
     const owner = await newUser(db), coach = await newUser(db);
     const { teamId } = await newTeam(db, owner);

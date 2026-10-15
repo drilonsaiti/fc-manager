@@ -1,20 +1,22 @@
 import { supabase } from "@/lib/supabase/client";
 import { check, toDate, toDateOrNull, unwrap } from "./util";
 import type { Competition, Match, MatchStatus } from "@/types";
+import type { GameFormat } from "@/features/formats/config";
 
 interface MatchRow {
   id: string; team_id: string; season_id: string | null; opponent: string; kickoff: string; venue: string;
   competition: Competition; is_home: boolean; status: MatchStatus; duration_minutes: number;
   started_at: string | null; our_score: number | null; their_score: number | null; notes: string | null;
   share_token: string; responses_open: boolean;
+  format: GameFormat; is_public: boolean;
 }
 
-const COLUMNS = "id, team_id, season_id, opponent, kickoff, venue, competition, is_home, status, duration_minutes, started_at, our_score, their_score, notes, share_token, responses_open";
+const COLUMNS = "id, team_id, season_id, opponent, kickoff, venue, competition, is_home, status, duration_minutes, started_at, our_score, their_score, notes, share_token, responses_open, format, is_public";
 
 export const toMatch = (r: MatchRow): Match => ({
   id: r.id, teamId: r.team_id, seasonId: r.season_id, opponent: r.opponent, kickoff: toDate(r.kickoff),
   venue: r.venue, competition: r.competition, isHome: r.is_home, status: r.status,
-  durationMinutes: r.duration_minutes, startedAt: toDateOrNull(r.started_at),
+  durationMinutes: r.duration_minutes, format: r.format, isPublic: r.is_public, startedAt: toDateOrNull(r.started_at),
   ourScore: r.our_score, theirScore: r.their_score, notes: r.notes,
   shareToken: r.share_token, responsesOpen: r.responses_open,
 });
@@ -39,12 +41,15 @@ export interface MatchInput {
   competition: Competition;
   isHome: boolean;
   durationMinutes: number;
+  format: GameFormat;
+  isPublic: boolean;
   notes: string | null;
 }
 
 const toRow = (i: MatchInput) => ({
   opponent: i.opponent.trim(), kickoff: i.kickoff.toISOString(), venue: i.venue.trim(),
-  competition: i.competition, is_home: i.isHome, duration_minutes: i.durationMinutes, notes: i.notes?.trim() || null,
+  competition: i.competition, is_home: i.isHome, duration_minutes: i.durationMinutes,
+  format: i.format, is_public: i.isPublic, notes: i.notes?.trim() || null,
 });
 
 export async function createMatch(teamId: string, seasonId: string | null, input: MatchInput): Promise<string> {
