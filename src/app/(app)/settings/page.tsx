@@ -2,7 +2,7 @@
 import { useState, type FormEvent } from "react";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
-import { Copy, LogOut, Trash2 } from "lucide-react";
+import { ChevronDown, Copy, LogOut, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { createInvite, deleteInvite, listInvites, listMembers, removeMember, renameTeam, setMemberRole, setStrictLinks, startSeason, updatePublicProfile, type Invite } from "@/lib/db/teams";
 import { friendlyError } from "@/lib/db/util";
@@ -13,6 +13,7 @@ import { LangSwitch } from "@/components/ui/LangSwitch";
 import { useT } from "@/i18n";
 import type { Role, Team } from "@/types";
 import { FORMAT_KEYS, type GameFormat } from "@/features/formats/config";
+import { safeImageUrl } from "@/lib/utils/safeImageUrl";
 
 interface ProfileDraft {
   isPublic: boolean; slug: string; defaultFormat: GameFormat; formats: GameFormat[]; logoUrl: string;
@@ -183,19 +184,26 @@ function PublicProfileSettings({ team, reload }: { team: Team; reload: () => Pro
     publicRosterCount: team.publicRosterCount, publicContact: team.publicContact,
   }));
   const [message, setMessage] = useState("");
+  const imageUrlInvalid = !!profile.logoUrl.trim() && !safeImageUrl(profile.logoUrl);
   async function save(e: FormEvent) {
     e.preventDefault();
     const slug = profile.slug.trim().toLowerCase();
     if (profile.isPublic && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) { setMessage(t("err.invalid")); return; }
+    const logoUrl = safeImageUrl(profile.logoUrl);
+    if (profile.logoUrl.trim() && !logoUrl) { setMessage(t("s.logoUrlInvalid")); return; }
     const formats = profile.formats.includes(profile.defaultFormat) ? profile.formats : [...profile.formats, profile.defaultFormat];
     try {
-      await updatePublicProfile(team.id, { ...profile, slug: slug || null, formats, logoUrl: profile.logoUrl.trim() || null });
+      await updatePublicProfile(team.id, { ...profile, slug: slug || null, formats, logoUrl });
       await reload(); setMessage(t("s.saved"));
     } catch (e) { setMessage(friendlyError(e)); }
   }
-  return <section className="space-y-3">
-    <h2 className="text-xs uppercase tracking-widest text-pitch-500">{t("s.publicProfile")}</h2>
-    <form onSubmit={save} className="surface p-4 space-y-3">
+  return <details className="surface group">
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden">
+      <span><span className="block text-xs uppercase tracking-widest text-pitch-400">{t("s.publicProfile")}</span>
+        <span className="mt-1 block text-sm text-pitch-300">{team.isPublic ? t("s.makePublic") : t("s.profileHelp")}</span></span>
+      <ChevronDown aria-hidden="true" className="h-5 w-5 shrink-0 text-pitch-400 transition-transform duration-200 group-open:rotate-180" />
+    </summary>
+    <form onSubmit={save} className="border-t border-white/10 p-4 space-y-3">
       <label className="flex gap-3 items-start text-sm"><input type="checkbox" className="mt-1 w-5 h-5 accent-white" checked={profile.isPublic}
         onChange={(e) => setProfile({ ...profile, isPublic: e.target.checked })} />
         <span><span className="font-medium">{t("s.makePublic")}</span><span className="block text-xs text-pitch-400 mt-1">{t("s.profileHelp")}</span></span>
@@ -203,7 +211,9 @@ function PublicProfileSettings({ team, reload }: { team: Team; reload: () => Pro
       <div className="grid sm:grid-cols-2 gap-3">
         <Field label={t("s.profileSlug")}><input className="input-field" value={profile.slug} onChange={(e) => setProfile({ ...profile, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-") })} maxLength={80} placeholder="your-team" /></Field>
         <Field label={t("s.city")}><input className="input-field" value={profile.city} onChange={(e) => setProfile({ ...profile, city: e.target.value })} maxLength={100} /></Field>
-        <Field label={t("s.logoUrl")}><input className="input-field" type="url" value={profile.logoUrl} onChange={(e) => setProfile({ ...profile, logoUrl: e.target.value })} maxLength={500} /></Field>
+        <Field label={t("s.logoUrl")}><input className="input-field" type="url" value={profile.logoUrl} onChange={(e) => setProfile({ ...profile, logoUrl: e.target.value })} maxLength={500} autoComplete="url" aria-describedby="logo-url-help" />
+          <span id="logo-url-help" className="mt-1 block text-xs text-pitch-500">{t("s.logoUrlHelp")}</span>
+          {imageUrlInvalid && <span role="alert" className="mt-1 block text-xs text-red-400">{t("s.logoUrlInvalid")}</span>}</Field>
         <Field label={t("s.level")}><select className="input-field" value={profile.level} onChange={(e) => setProfile({ ...profile, level: e.target.value })}>
           {(["any", "beginner", "recreational", "intermediate", "competitive", "elite"] as const).map((x) => <option key={x} value={x}>{t(`level.${x}` as "level.any")}</option>)}
         </select></Field>
@@ -228,5 +238,5 @@ function PublicProfileSettings({ team, reload }: { team: Team; reload: () => Pro
       {message && <p role="status" className="text-xs text-pitch-300">{message}</p>}
       {profile.isPublic && profile.slug && <p className="text-xs text-pitch-500">/teams/{profile.slug}</p>}
     </form>
-  </section>;
+  </details>;
 }

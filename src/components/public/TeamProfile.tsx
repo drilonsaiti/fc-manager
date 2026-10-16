@@ -1,6 +1,7 @@
 "use client";
 import type { PublicMatchRow, PublicTeamRow } from "@/components/public/TeamDiscovery";
 import { useT } from "@/i18n";
+import { safeImageUrl } from "@/lib/utils/safeImageUrl";
 import Image from "next/image";
 
 export function TeamProfile({ profile, matches }: { profile: PublicTeamRow; matches: PublicMatchRow[] }) {
@@ -8,7 +9,7 @@ export function TeamProfile({ profile, matches }: { profile: PublicTeamRow; matc
   return <>
     <header className="surface p-5 sm:p-7 space-y-3">
       <p className="text-xs uppercase tracking-widest text-pitch-400">{t("pub.profile")}</p>
-      {profile.logoUrl && <Image src={profile.logoUrl} alt="" width={88} height={88} unoptimized className="w-20 h-20 rounded-full object-cover bg-white/10" />}
+      {safeImageUrl(profile.logoUrl) && <Image src={safeImageUrl(profile.logoUrl)!} alt="" width={88} height={88} unoptimized referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.style.display = "none"; }} className="w-20 h-20 rounded-full object-cover bg-white/10" />}
       <h1 className="font-display text-4xl sm:text-5xl">{profile.name}</h1>
       <p className="text-pitch-300">{profile.city}{profile.level ? ` · ${t(`level.${profile.level}` as "level.any")}` : ""}</p>
       {profile.bio && <p className="max-w-2xl text-sm text-pitch-200 whitespace-pre-wrap">{profile.bio}</p>}

@@ -21,7 +21,7 @@ const NAV: { href: string; label: MessageKey; icon: typeof Home }[] = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { t } = useT();
-  const { loading, userId, member, season } = useAuth();
+  const { loading, userId, member, season, team } = useAuth();
   const router = useRouter();
   const path = usePathname();
 
@@ -41,7 +41,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <TeamSwitcher />
           {season && <p className="text-xs text-pitch-500">{season.name}</p>}
         </div>
-        {NAV.map(({ href, label, icon: Icon }) => (
+        {NAV.filter(({ href }) => href !== "/challenges" || team?.isPublic).map(({ href, label, icon: Icon }) => (
           <Link key={href} href={href}
             className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
               active(href) ? "bg-white text-black font-medium" : "text-pitch-400 hover:text-white hover:bg-white/5")}>
@@ -74,8 +74,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {/* Mobile bottom navigation */}
         <nav aria-label={t("nav.main")} className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-pitch-950/95 backdrop-blur border-t border-white/10 pb-[env(safe-area-inset-bottom)]">
-          <ul className="grid grid-cols-6">
-            {NAV.map(({ href, label, icon: Icon }) => (
+          <ul className={cn("grid", team?.isPublic ? "grid-cols-6" : "grid-cols-5")}>
+            {NAV.filter(({ href }) => href !== "/challenges" || team?.isPublic).map(({ href, label, icon: Icon }) => (
               <li key={href}>
                 <Link href={href} aria-current={active(href) ? "page" : undefined}
                   className={cn("flex flex-col items-center gap-0.5 py-2.5 text-[11px] transition-colors",

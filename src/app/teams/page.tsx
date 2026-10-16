@@ -11,9 +11,9 @@ export const metadata: Metadata = {
 export default async function TeamsPage() {
   const db = serviceClient();
   const [teamResult, matchResult, challengeResult] = await Promise.all([
-    db.rpc("public_team_directory", { p_limit: 100, p_offset: 0 }),
-    db.rpc("public_upcoming_matches", { p_limit: 100, p_offset: 0 }),
-    db.rpc("public_open_challenges", { p_limit: 100, p_offset: 0 }),
+    db.rpc("public_team_directory", { p_limit: 6, p_offset: 0 }),
+    db.rpc("public_upcoming_matches", { p_limit: 6, p_offset: 0 }),
+    db.rpc("public_open_challenges", { p_limit: 6, p_offset: 0 }),
   ]);
   const teams = (teamResult.data ?? []) as PublicTeamRow[];
   const matches = (matchResult.data ?? []) as PublicMatchRow[];
