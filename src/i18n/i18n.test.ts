@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import { en } from "./en";
 import { sq } from "./sq";
 import { mk } from "./mk";
+import { de } from "./de";
+import { it as italian } from "./it";
+import { tr } from "./tr";
 import { fill } from "./index";
 
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
 describe("translations", () => {
-  for (const [name, dict] of [["sq", sq], ["mk", mk]] as const) {
+  for (const [name, dict] of [["sq", sq], ["mk", mk], ["de", de], ["it", italian], ["tr", tr]] as const) {
     it(`${name} has exactly the English keys`, () => {
       expect(Object.keys(dict).sort()).toEqual(Object.keys(en).sort());
     });

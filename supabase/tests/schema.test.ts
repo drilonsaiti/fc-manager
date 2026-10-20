@@ -491,6 +491,14 @@ describe("formats and public discovery", () => {
     const global = await run<{ result: Record<string, unknown>[] }>(db, SERVICE,
       "select public.public_upcoming_matches('11v11', 'Skopje', now(), now() + interval '10 days', 20, 0) as result");
     expect(global[0].result).toMatchObject({ matchId: match.id, teamSlug: "public-schedule", opponent: "Away FC" });
+    const searchedMatches = await run<{ result: Record<string, unknown> }>(db, SERVICE,
+      "select public.search_upcoming_matches('Away FC', null, null, now(), now() + interval '10 days', 20, 0) as result");
+    expect(searchedMatches[0].result).toMatchObject({ matchId: match.id, opponent: "Away FC" });
+    const [{ challenge }] = await run<{ challenge: string }>(db, SERVICE,
+      "select public.create_challenge($1, $2, '11v11', now() + interval '4 days', null, 'City Ground', 'any', 'Friendly', 'search-hash') as challenge", [owner, t.teamId]);
+    const searchedChallenges = await run<{ result: Record<string, unknown> }>(db, SERVICE,
+      "select public.search_open_challenges('Public Schedule', null, null, now(), now() + interval '10 days', null, 20, 0) as result");
+    expect(searchedChallenges[0].result).toMatchObject({ id: challenge, teamName: "Public Schedule FC" });
     await run(db, user(owner), "update public.matches set is_public = false where id = $1", [match.id]);
     expect(await run(db, SERVICE, "select public.public_team_schedule('public-schedule') as result")).toHaveLength(0);
   });

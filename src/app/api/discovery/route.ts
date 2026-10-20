@@ -27,8 +27,9 @@ export async function GET(req: NextRequest) {
       p_offset: Math.max(0, Number(q.get("offset") ?? 0) || 0),
     });
   } else if (action === "challenges") {
-    result = await db.rpc("public_open_challenges", {
+    result = await db.rpc("search_open_challenges", {
       p_format: text(q.get("format"), 16), p_area: text(q.get("area")),
+      p_query: text(q.get("q")),
       p_from: date(q.get("from")) ?? new Date().toISOString(),
       p_to: dateEnd(q.get("to")) ?? new Date(Date.now() + 90 * 86400000).toISOString(),
       p_level: text(q.get("level"), 24),
@@ -36,8 +37,9 @@ export async function GET(req: NextRequest) {
       p_offset: Math.max(0, Number(q.get("offset") ?? 0) || 0),
     });
   } else if (action === "matches") {
-    result = await db.rpc("public_upcoming_matches", {
+    result = await db.rpc("search_upcoming_matches", {
       p_format: text(q.get("format"), 16), p_area: text(q.get("area")),
+      p_query: text(q.get("q")),
       p_from: date(q.get("from")) ?? new Date().toISOString(),
       p_to: dateEnd(q.get("to")) ?? new Date(Date.now() + 90 * 86400000).toISOString(),
       p_limit: Math.min(100, Math.max(1, Number(q.get("limit") ?? 30) || 30)),

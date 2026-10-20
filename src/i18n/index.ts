@@ -3,20 +3,26 @@ import { useCallback, useSyncExternalStore } from "react";
 import { en, type MessageKey } from "./en";
 import { sq } from "./sq";
 import { mk } from "./mk";
+import { de } from "./de";
+import { it } from "./it";
+import { tr as turkish } from "./tr";
 
-export type Lang = "en" | "sq" | "mk";
+export type Lang = "en" | "sq" | "mk" | "de" | "it" | "tr";
 export type { MessageKey };
 
 export const LANGS: { id: Lang; label: string; locale: string }[] = [
   { id: "en", label: "English", locale: "en-GB" },
   { id: "sq", label: "Shqip", locale: "sq-AL" },
   { id: "mk", label: "Македонски", locale: "mk-MK" },
+  { id: "de", label: "Deutsch", locale: "de-DE" },
+  { id: "it", label: "Italiano", locale: "it-IT" },
+  { id: "tr", label: "Türkçe", locale: "tr-TR" },
 ];
 
-const DICT: Record<Lang, Record<string, string>> = { en, sq, mk };
+const DICT: Record<Lang, Record<string, string>> = { en, sq, mk, de, it, tr: turkish };
 const STORAGE_KEY = "fcm:lang";
 
-const isLang = (v: unknown): v is Lang => v === "en" || v === "sq" || v === "mk";
+const isLang = (v: unknown): v is Lang => v === "en" || v === "sq" || v === "mk" || v === "de" || v === "it" || v === "tr";
 
 /** Saved choice first, then the phone's language, then English. */
 export function detectLang(): Lang {
@@ -28,6 +34,9 @@ export function detectLang(): Lang {
     const base = l.toLowerCase().split("-")[0];
     if (base === "sq") return "sq";
     if (base === "mk") return "mk";
+    if (base === "de") return "de";
+    if (base === "it") return "it";
+    if (base === "tr") return "tr";
     if (base === "en") return "en";
   }
   return "en";

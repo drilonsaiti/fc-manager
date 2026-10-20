@@ -2,7 +2,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, House, Search, SlidersHorizontal } from "lucide-react";
+import { ChevronLeft, ChevronRight, House, Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { LangSwitch } from "@/components/ui/LangSwitch";
 import { challengeApi } from "@/lib/public/challenges";
@@ -25,9 +25,11 @@ export interface PublicChallengeRow {
 export function TeamDiscovery({ teams, matches, challenges }: {
   teams: PublicTeamRow[]; matches: PublicMatchRow[]; challenges: PublicChallengeRow[];
 }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const { team } = useAuth();
   const pageSize = 6;
+  const [activeTab, setActiveTab] = useState<"all" | "challenges" | "matches" | "teams">("all");
+  const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
   const [teamArea, setTeamArea] = useState("");
   const [teamFormat, setTeamFormat] = useState("");
@@ -53,6 +55,11 @@ export function TeamDiscovery({ teams, matches, challenges }: {
   const [pending, setPending] = useState({ teams: false, matches: false, challenges: false });
 
   useEffect(() => {
+    const timer = window.setTimeout(() => setQuery(searchInput.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
     const abort = new AbortController();
     const load = async (kind: "directory" | "matches" | "challenges", page: number, params: Record<string, string>, update: (data: never[]) => void, hasMore: (value: boolean) => void, key: "teams" | "matches" | "challenges") => {
       const search = new URLSearchParams({ action: kind, limit: String(pageSize), offset: String(page * pageSize), ...params });
@@ -71,8 +78,8 @@ export function TeamDiscovery({ teams, matches, challenges }: {
       }
     };
     void load("directory", teamPage, { q: query, area: teamArea, format: teamFormat, level: teamLevel }, setVisibleTeams as (data: never[]) => void, setTeamHasMore, "teams");
-    void load("matches", matchPage, { area: matchArea, format: matchFormat, from: matchFrom, to: matchTo }, setVisibleMatches as (data: never[]) => void, setMatchHasMore, "matches");
-    void load("challenges", challengePage, { area: challengeArea, format: challengeFormat, level: challengeLevel, from: challengeFrom, to: challengeTo }, setVisibleChallenges as (data: never[]) => void, setChallengeHasMore, "challenges");
+    void load("matches", matchPage, { q: query, area: matchArea, format: matchFormat, from: matchFrom, to: matchTo }, setVisibleMatches as (data: never[]) => void, setMatchHasMore, "matches");
+    void load("challenges", challengePage, { q: query, area: challengeArea, format: challengeFormat, level: challengeLevel, from: challengeFrom, to: challengeTo }, setVisibleChallenges as (data: never[]) => void, setChallengeHasMore, "challenges");
     return () => abort.abort();
   }, [teamPage, matchPage, challengePage, query, teamArea, teamFormat, teamLevel, matchArea, matchFormat, matchFrom, matchTo, challengeArea, challengeFormat, challengeLevel, challengeFrom, challengeTo]);
 
@@ -92,13 +99,19 @@ export function TeamDiscovery({ teams, matches, challenges }: {
       <nav className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3"><Link href="/" className="font-display text-xl tracking-wider">FC MANAGER</Link><div className="flex flex-wrap items-center gap-2 sm:gap-3"><Link href="/" className="inline-flex items-center gap-1.5 rounded-full border border-white/25 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-[#efeadc] hover:bg-white/10"><House size={14} />{t("pub.home")}</Link><div className="text-[#efeadc]"><LangSwitch /></div><Link href={team ? "/dashboard" : "/login"} className="rounded-full bg-[#ffd84d] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[#0d1510] hover:bg-white">{team ? t("lp.open") : t("lp.signin")}</Link></div></nav>
       <div className="mx-auto mt-16 max-w-7xl sm:mt-24"><p className="inline-flex items-center gap-3 text-xs font-semibold uppercase tracking-[.22em] text-[#ffd84d]"><span className="h-2 w-2 rounded-full bg-[#ffd84d]" />{t("pub.directoryEyebrow")}</p><h1 className="mt-5 max-w-4xl font-display text-5xl uppercase leading-[.94] tracking-wide sm:text-7xl lg:text-8xl">{t("pub.title")}</h1><p className="mt-5 max-w-xl text-sm leading-6 text-[#efeadc]/75 sm:text-base">{t("pub.intro")}</p></div>
     </header>
-    <div className="mx-auto max-w-7xl space-y-14 px-5 py-10 sm:px-10 sm:py-14">
-    <section className="grid gap-4 rounded-2xl border border-[#0d1510]/10 bg-white/55 p-4 sm:grid-cols-[auto_1fr] sm:items-center sm:p-5" aria-label={t("pub.search")}>
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[#6c7569]"><SlidersHorizontal size={16} />{t("pub.filterIntro")}</div>
-      <p className="text-sm text-[#6c7569]">{t("pub.filterHint")}</p>
-    </section>
+    <div className="mx-auto max-w-7xl space-y-10 px-5 py-10 sm:px-10 sm:py-14">
+    <div className="space-y-5">
+      <div role="tablist" aria-label={t("pub.directoryTabs")} className="flex gap-2 overflow-x-auto border-b border-[#0d1510]/15 pb-3">
+        {(["all", "challenges", "matches", "teams"] as const).map((tab) => <button key={tab} id={`directory-tab-${tab}`} type="button" role="tab" aria-selected={activeTab === tab} aria-controls="directory-panel" onClick={() => setActiveTab(tab)} className={`shrink-0 rounded-full px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors ${activeTab === tab ? "bg-[#ffd84d] text-[#0d1510]" : "border border-[#0d1510]/15 text-[#6c7569] hover:border-[#0d1510]/40 hover:text-[#0d1510]"}`}>
+          {tab === "all" ? t("pub.tabAll") : tab === "challenges" ? t("pub.challenges") : tab === "matches" ? t("pub.matches") : t("pub.teams")}
+        </button>)}
+      </div>
+      <label className="relative block max-w-2xl"><Search aria-hidden="true" className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#6c7569]" /><span className="sr-only">{t("pub.searchAll")}</span><input type="search" className="w-full rounded-full border border-[#0d1510]/15 bg-white/70 py-3.5 pl-12 pr-5 text-sm text-[#0d1510] placeholder:text-[#6c7569]/75 focus:border-[#0d1510]/50 focus:outline-none" placeholder={t("pub.searchAll")} value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setTeamPage(0); setMatchPage(0); setChallengePage(0); }} /></label>
+    </div>
 
-    <section id="challenges" className="space-y-5">
+    <div id="directory-panel" role="tabpanel" aria-labelledby={`directory-tab-${activeTab}`} tabIndex={0} className="space-y-14">
+
+    {(activeTab === "all" || activeTab === "challenges") && <section id="challenges" className="space-y-5">
       <SectionHeading eyebrow={t("pub.eyebrowChallenges")} title={t("pub.challenges")} count={visibleChallenges.length} />
       <div className="grid gap-3 rounded-2xl border border-[#0d1510]/10 bg-white/55 p-4 sm:grid-cols-2 lg:grid-cols-4">
         {filterControl(t("pub.area"), challengeArea, setChallengeArea)}{formatControl(t("pub.formats"), challengeFormat, setChallengeFormat)}
@@ -107,23 +120,23 @@ export function TeamDiscovery({ teams, matches, challenges }: {
       </div>
       {visibleChallenges.length === 0 ? <EmptyResult text={t("pub.emptyChallenges")} loading={pending.challenges} /> : <div className="grid gap-3 md:grid-cols-2">{visibleChallenges.map((x) => <ChallengeCard key={x.id} challenge={x} />)}</div>}
       {pager(challengePage, challengeHasMore, setChallengePage, pending.challenges)}
-    </section>
+    </section>}
 
-    <section id="matches" className="space-y-5"><SectionHeading eyebrow={t("pub.eyebrowMatches")} title={t("pub.matches")} count={visibleMatches.length} />
+    {(activeTab === "all" || activeTab === "matches") && <section id="matches" className="space-y-5"><SectionHeading eyebrow={t("pub.eyebrowMatches")} title={t("pub.matches")} count={visibleMatches.length} />
       <div className="grid gap-3 rounded-2xl border border-[#0d1510]/10 bg-white/55 p-4 sm:grid-cols-2 lg:grid-cols-4">{filterControl(t("pub.area"), matchArea, setMatchArea)}{formatControl(t("pub.formats"), matchFormat, setMatchFormat)}<div className="grid grid-cols-2 gap-2">{dateControl(t("pub.from"), matchFrom, setMatchFrom)}{dateControl(t("pub.to"), matchTo, setMatchTo)}</div></div>
       {visibleMatches.length === 0 ? <EmptyResult text={t("pub.emptyMatches")} loading={pending.matches} /> : <div className="space-y-3">{[...calendar.entries()].map(([day, dayMatches]) => <section key={day} className="overflow-hidden rounded-2xl border border-[#0d1510]/10 bg-white/70">
           <h3 className="bg-[#0d1510] px-4 py-2 text-xs uppercase tracking-widest text-[#efeadc]">{day}</h3>
           <div className="divide-y divide-[#0d1510]/10">{dayMatches.map((x) => <div key={x.matchId} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-4 text-sm">
-            <time className="font-semibold tabular-nums" dateTime={x.kickoff}>{new Intl.DateTimeFormat(undefined, { timeStyle: "short" }).format(new Date(x.kickoff))}</time>
+            <time className="font-semibold tabular-nums" dateTime={x.kickoff}>{new Intl.DateTimeFormat(locale, { timeStyle: "short" }).format(new Date(x.kickoff))}</time>
             <span className="font-medium">{x.teamName} <span className="text-[#6c7569]">vs</span> {x.opponent}</span><span className="text-[#6c7569]">{x.venue || x.city} · {t(`fmt.${x.format}` as "fmt.11v11")}</span>
             <Link href={`/teams/${encodeURIComponent(x.teamSlug)}`} className="ml-auto text-xs font-semibold uppercase tracking-wider underline decoration-[#e5392b] decoration-2 underline-offset-4">{t("pub.profile")}</Link>
           </div>)}</div>
         </section>)}</div>}
       {pager(matchPage, matchHasMore, setMatchPage, pending.matches)}
-    </section>
+    </section>}
 
-    <section id="teams" className="space-y-5"><SectionHeading eyebrow={t("pub.eyebrowTeams")} title={t("pub.teams")} count={visibleTeams.length} />
-      <div className="grid gap-3 rounded-2xl border border-[#0d1510]/10 bg-white/55 p-4 sm:grid-cols-2 lg:grid-cols-4">{filterControl(t("pub.search"), query, setQuery)}{filterControl(t("pub.area"), teamArea, setTeamArea)}{formatControl(t("pub.formats"), teamFormat, setTeamFormat)}<label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6c7569]">{t("pub.allLevels")}<select className="mt-1.5 w-full rounded-xl border border-[#0d1510]/15 bg-white/70 px-3.5 py-3 text-sm text-[#0d1510]" value={teamLevel} onChange={(e) => { setTeamLevel(e.target.value); setTeamPage(0); }}><option value="">{t("pub.allLevels")}</option>{(["beginner", "recreational", "intermediate", "competitive", "elite"] as const).map((x) => <option key={x} value={x}>{t(`level.${x}` as "level.any")}</option>)}</select></label></div>
+    {(activeTab === "all" || activeTab === "teams") && <section id="teams" className="space-y-5"><SectionHeading eyebrow={t("pub.eyebrowTeams")} title={t("pub.teams")} count={visibleTeams.length} />
+      <div className="grid gap-3 rounded-2xl border border-[#0d1510]/10 bg-white/55 p-4 sm:grid-cols-2 lg:grid-cols-3">{filterControl(t("pub.area"), teamArea, setTeamArea)}{formatControl(t("pub.formats"), teamFormat, setTeamFormat)}<label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6c7569]">{t("pub.allLevels")}<select className="mt-1.5 w-full rounded-xl border border-[#0d1510]/15 bg-white/70 px-3.5 py-3 text-sm text-[#0d1510]" value={teamLevel} onChange={(e) => { setTeamLevel(e.target.value); setTeamPage(0); }}><option value="">{t("pub.allLevels")}</option>{(["beginner", "recreational", "intermediate", "competitive", "elite"] as const).map((x) => <option key={x} value={x}>{t(`level.${x}` as "level.any")}</option>)}</select></label></div>
       {visibleTeams.length === 0 ? <EmptyResult text={t("pub.emptyTeams")} loading={pending.teams} /> :
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{visibleTeams.map((x) => <Link key={x.slug} href={`/teams/${encodeURIComponent(x.slug)}`} className="group rounded-2xl border border-[#0d1510]/10 bg-white/70 p-5 transition hover:-translate-y-0.5 hover:border-[#0d1510]/30 hover:bg-white">
           <div className="flex items-center gap-3"><div className="grid h-12 w-12 place-items-center overflow-hidden rounded-full bg-[#0a1a12] font-display text-xl text-[#ffd84d]">
@@ -133,7 +146,8 @@ export function TeamDiscovery({ teams, matches, challenges }: {
           <p className="mt-4 border-t border-[#0d1510]/10 pt-3 text-xs text-[#6c7569]">{x.formats.map((f) => t(`fmt.${f}` as "fmt.11v11")).join(" · ")}{x.rosterCount != null ? ` · ${t("pub.squadCount", { count: x.rosterCount })}` : ""}</p>
         </Link>)}</div>}
       {pager(teamPage, teamHasMore, setTeamPage, pending.teams)}
-    </section>
+    </section>}
+    </div>
     <footer className="border-t border-[#0d1510]/15 pt-5 text-xs uppercase tracking-widest text-[#6c7569]">FC MANAGER · {t("pub.directoryEyebrow")}</footer>
     </div>
   </main>;
@@ -148,7 +162,7 @@ function EmptyResult({ text, loading }: { text: string; loading: boolean }) {
 }
 
 function ChallengeCard({ challenge }: { challenge: PublicChallengeRow }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const { team, canManage } = useAuth();
   const [message, setMessage] = useState("");
   const [reason, setReason] = useState("");
@@ -180,7 +194,7 @@ function ChallengeCard({ challenge }: { challenge: PublicChallengeRow }) {
   return <article className="surface p-4 space-y-2">
     <div className="flex items-center justify-between gap-2"><Link className="font-medium underline" href={`/teams/${encodeURIComponent(challenge.teamSlug)}`}>{challenge.teamName}</Link>
       <span className="rounded-full bg-white/10 px-2 py-1 text-xs">{t(`fmt.${challenge.format}` as "fmt.11v11")}</span></div>
-    <p className="text-sm">{new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(challenge.startsAt))}</p>
+    <p className="text-sm">{new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(challenge.startsAt))}</p>
     <p className="text-sm text-pitch-300">{challenge.location} · {challenge.city}</p>
     <p className="text-xs text-pitch-400">{t(`level.${challenge.level}` as "level.any")}</p>
     {challenge.notes && <p className="text-sm text-pitch-300">{challenge.notes}</p>}

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Bell, Check, ChevronDown, Copy, HelpCircle, Link2, Lock, MessageCircle, Unlock, UserCheck, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAvailability } from "@/hooks/data";
@@ -44,7 +44,12 @@ export function AvailabilityPanel(p: Props) {
   const { rows, summary, responses, mutate } = useAvailability(p.kind, p.eventId, p.players);
   const [note, setNote] = useState("");
   const url = typeof window === "undefined" ? "" : buildShareUrl(window.location.origin, p.shareToken);
-  const attended = new Set(responses.filter((r) => r.attended).map((r) => r.playerId));
+  const attended = useMemo(() => new Set(responses.filter((r) => r.attended).map((r) => r.playerId)), [responses]);
+  const sortedRows = useMemo(
+    () => [...rows].sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status) || a.player.name.localeCompare(b.player.name)),
+    [rows],
+  );
+  const activePlayers = useMemo(() => p.players.filter((x) => x.active), [p.players]);
 
   function flash(text: string) { setNote(text); setTimeout(() => setNote(""), 2500); }
 
@@ -97,11 +102,11 @@ export function AvailabilityPanel(p: Props) {
   return (
     <section className="space-y-4" aria-label={t("tab.availability")}>
       {/* Counts */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {ORDER.map((s) => (
-          <div key={s} className="surface-2 p-3 text-center">
+          <div key={s} className="surface-2 min-w-0 p-3 text-center">
             <p className="text-2xl font-semibold tabular-nums">{summary[s].length}</p>
-            <p className="text-[11px] text-pitch-400 leading-tight">{t(META[s].label)}</p>
+            <p className="text-[11px] text-pitch-400 leading-tight break-words hyphens-auto">{t(META[s].label)}</p>
           </div>
         ))}
       </div>
@@ -125,10 +130,7 @@ export function AvailabilityPanel(p: Props) {
       {/* Per player */}
       <ul className="surface divide-y divide-white/5">
         {rows.length === 0 && <li className="p-4 text-sm text-pitch-400">{t("av.addPlayers")}</li>}
-        {rows
-          .slice()
-          .sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status) || a.player.name.localeCompare(b.player.name))
-          .map(({ player, status }) => (
+        {sortedRows.map(({ player, status }) => (
             <li key={player.id} className="flex items-center gap-3 px-4 py-2.5">
               <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", META[status].dot)} aria-hidden />
               <span className="flex-1 min-w-0 truncate text-sm">
@@ -166,7 +168,7 @@ export function AvailabilityPanel(p: Props) {
           {closed ? t("av.reopen") : t("av.close")}
         </button>
       )}
-      {canManage && !p.locked && p.players.some((x) => x.active) && (
+      {canManage && !p.locked && activePlayers.length > 0 && (
         <details className="surface group">
           <summary className="flex items-center gap-2 px-4 py-3 text-sm cursor-pointer list-none select-none">
             <UserCheck className="w-4 h-4 text-pitch-400" />
@@ -178,12 +180,12 @@ export function AvailabilityPanel(p: Props) {
             <button className="btn-primary w-full py-2.5 text-sm flex items-center justify-center gap-2"
               onClick={() => copy(buildPersonalLinksText({
                 title: p.title, date: p.startsAt, locale,
-                entries: p.players.filter((x) => x.active).map((x) => ({ name: x.name, url: personalUrl(x) })),
-              }), t("av.copiedPersonal", { n: p.players.filter((x) => x.active).length }))}>
+                entries: activePlayers.map((x) => ({ name: x.name, url: personalUrl(x) })),
+              }), t("av.copiedPersonal", { n: activePlayers.length }))}>
               <Copy className="w-4 h-4" />{t("av.copyAllPersonal")}
             </button>
             <ul className="divide-y divide-white/5">
-              {p.players.filter((x) => x.active).map((x) => {
+              {activePlayers.map((x) => {
                 const text = buildInviteText({ kind: p.kind, title: p.title, date: p.startsAt, place: p.place, url: personalUrl(x), labels, locale });
                 const wa = whatsappUrl(x.phone, text);
                 return (
