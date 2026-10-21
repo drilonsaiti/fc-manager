@@ -21,8 +21,8 @@ interface Inbox { challenges: Challenge[]; requests: RequestRow[]; notifications
 
 export default function ChallengesPage() {
   const { t } = useT();
-  const { team, canManage } = useAuth();
-  const { data, mutate } = useSWR<Inbox>(team && canManage ? ["challenge-inbox", team.id] : null, () => loadChallengeInbox(team!.id) as Promise<Inbox>);
+  const { team, canManage, userId } = useAuth();
+  const { data, mutate } = useSWR<Inbox>(userId && team && canManage ? ["challenge-inbox", userId, team.id] : null, () => loadChallengeInbox(team!.id) as Promise<Inbox>);
   const [format, setFormat] = useState<GameFormat>(team?.defaultFormat ?? "11v11");
   const [when, setWhen] = useState(toLocalInput(defaultKickoff()));
   const [location, setLocation] = useState("");

@@ -52,7 +52,7 @@ export function TeamDiscovery({ teams, matches, challenges }: {
   const [teamHasMore, setTeamHasMore] = useState(teams.length === pageSize);
   const [matchHasMore, setMatchHasMore] = useState(matches.length === pageSize);
   const [challengeHasMore, setChallengeHasMore] = useState(challenges.length === pageSize);
-  const [pending, setPending] = useState({ teams: false, matches: false, challenges: false });
+  const [pending, setPending] = useState({ teams: true, matches: true, challenges: true });
 
   useEffect(() => {
     const timer = window.setTimeout(() => setQuery(searchInput.trim()), 250);
@@ -77,11 +77,17 @@ export function TeamDiscovery({ teams, matches, challenges }: {
         if (!abort.signal.aborted) setPending((state) => ({ ...state, [key]: false }));
       }
     };
-    void load("directory", teamPage, { q: query, area: teamArea, format: teamFormat, level: teamLevel }, setVisibleTeams as (data: never[]) => void, setTeamHasMore, "teams");
-    void load("matches", matchPage, { q: query, area: matchArea, format: matchFormat, from: matchFrom, to: matchTo }, setVisibleMatches as (data: never[]) => void, setMatchHasMore, "matches");
-    void load("challenges", challengePage, { q: query, area: challengeArea, format: challengeFormat, level: challengeLevel, from: challengeFrom, to: challengeTo }, setVisibleChallenges as (data: never[]) => void, setChallengeHasMore, "challenges");
+    if (activeTab === "all" || activeTab === "teams") {
+      void load("directory", teamPage, { q: query, area: teamArea, format: teamFormat, level: teamLevel }, setVisibleTeams as (data: never[]) => void, setTeamHasMore, "teams");
+    }
+    if (activeTab === "all" || activeTab === "matches") {
+      void load("matches", matchPage, { q: query, area: matchArea, format: matchFormat, from: matchFrom, to: matchTo }, setVisibleMatches as (data: never[]) => void, setMatchHasMore, "matches");
+    }
+    if (activeTab === "all" || activeTab === "challenges") {
+      void load("challenges", challengePage, { q: query, area: challengeArea, format: challengeFormat, level: challengeLevel, from: challengeFrom, to: challengeTo }, setVisibleChallenges as (data: never[]) => void, setChallengeHasMore, "challenges");
+    }
     return () => abort.abort();
-  }, [teamPage, matchPage, challengePage, query, teamArea, teamFormat, teamLevel, matchArea, matchFormat, matchFrom, matchTo, challengeArea, challengeFormat, challengeLevel, challengeFrom, challengeTo]);
+  }, [activeTab, teamPage, matchPage, challengePage, query, teamArea, teamFormat, teamLevel, matchArea, matchFormat, matchFrom, matchTo, challengeArea, challengeFormat, challengeLevel, challengeFrom, challengeTo]);
 
   const filterControl = (label: string, value: string, set: (value: string) => void) => <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6c7569]">{label}<input className="mt-1.5 w-full rounded-xl border border-[#0d1510]/15 bg-white/70 px-3.5 py-3 text-sm text-[#0d1510] placeholder:text-[#6c7569]/70 focus:border-[#0d1510]/50 focus:outline-none" value={value} onChange={(e) => { set(e.target.value); setTeamPage(0); setMatchPage(0); setChallengePage(0); }} /></label>;
   const formatControl = (label: string, value: string, set: (value: string) => void) => <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#6c7569]">{label}<select className="mt-1.5 w-full rounded-xl border border-[#0d1510]/15 bg-white/70 px-3.5 py-3 text-sm text-[#0d1510] focus:border-[#0d1510]/50 focus:outline-none" value={value} onChange={(e) => { set(e.target.value); setTeamPage(0); setMatchPage(0); setChallengePage(0); }}><option value="">{t("pub.allFormats")}</option>{FORMAT_KEYS.map((x) => <option key={x} value={x}>{t(`fmt.${x}` as "fmt.11v11")}</option>)}</select></label>;

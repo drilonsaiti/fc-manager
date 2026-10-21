@@ -18,6 +18,8 @@ export function AppProviders({ children }: { children: ReactNode }) {
       focusThrottleInterval: 10_000,
       keepPreviousData: true,
       errorRetryCount: 2,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
     }}>
       <HtmlLang />
       <AuthProvider>{children}</AuthProvider>

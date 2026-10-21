@@ -30,8 +30,8 @@ export default function SettingsPage() {
   const [note, setNote] = useState("");
   const [inviteRole, setInviteRole] = useState<Role>("coach");
 
-  const membersQ = useSWR(team ? ["members", team.id] : null, () => listMembers(team!.id));
-  const invitesQ = useSWR(team && isOwner ? ["invites", team.id] : null, () => listInvites(team!.id));
+  const membersQ = useSWR(userId && team ? ["members", userId, team.id] : null, () => listMembers(team!.id));
+  const invitesQ = useSWR(userId && team && isOwner ? ["invites", userId, team.id] : null, () => listInvites(team!.id));
   const members = membersQ.data ?? [];
   const invites: Invite[] = invitesQ.data ?? [];
   const refresh = async () => { await Promise.all([membersQ.mutate(), invitesQ.mutate()]); };

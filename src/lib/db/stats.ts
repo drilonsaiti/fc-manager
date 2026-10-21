@@ -8,7 +8,9 @@ interface StatRow {
 }
 
 export async function fetchSeasonStats(teamId: string, seasonId: string): Promise<SeasonPlayerStat[]> {
-  const rows = unwrap(await supabase().from("season_player_stats").select("*")
+  const rows = unwrap(await supabase().from("season_player_stats").select(
+    "player_id, appearances, starts, sub_appearances, minutes, goals, assists, yellow, red, own_goals, wins, draws, losses",
+  )
     .eq("team_id", teamId).eq("season_id", seasonId)) as StatRow[];
   return rows.map((r) => ({
     playerId: r.player_id, appearances: r.appearances, starts: r.starts, subAppearances: r.sub_appearances,
